@@ -1,0 +1,167 @@
+<?php
+
+namespace App\Http\Controllers\Api;
+
+use App\Http\Controllers\Controller;
+use Illuminate\Http\Request;
+
+use App\Models\Supplier;
+use App\Models\Product;
+use App\Models\SupplierOrder;
+
+use App\Notifications\B2BOrderStatusNotification;
+use App\Notifications\NewB2BOrderNotification;
+use Notification;
+
+class SupplierOrderController extends Controller
+{
+    public function store(Request $request, $slug)
+    {
+        $validated = $request->validate([
+            'product_id'  => 'required|exists:products,id',
+            'quantity'    => 'required|integer|min:1',
+            'supplier_id' => 'required|exists:suppliers,id',
+        ]);
+
+        // 1. Security Check: ensure the product actually belongs to the provided supplier
+        $product = Product::withoutGlobalScopes()
+            ->where('id', $validated['product_id'])
+            ->where('supplier_id', $validated['supplier_id'])
+            ->with(['supplier.user', 'batches'])
+            ->firstOrFail();
+        
+        // 2. Resolve Store ID from Slug
+        $store = \App\Models\Store::where('slug', $slug)->firstOrFail();
+        $storeId = $store->id;
+        $storeName = $store->name;
+
+        // 3. Create Order Snapshot
+        $order = SupplierOrder::create([
+            'store_id'            => $storeId,
+            'product_id'          => $validated['product_id'],
+            'supplier_id'         => $validated['supplier_id'],
+            'quantity'            => $validated['quantity'],
+            'status'              => 'pending',
+            'price_at_order_usd'  => $product->price_usd,
+            'price_at_order_syr'  => $product->price, // getPriceAttribute (local SYR)
+        ]);
+
+        // Notify Supplier (Push + WebSockets)
+        if ($product->supplier && $product->supplier->user) {
+            $product->supplier->user->notify(new NewB2BOrderNotification(
+                $storeName,
+                $product->name ?? 'منتج غير محدد',
+                $validated['quantity']
+            ));
+            
+            try {
+                broadcast(new \App\Events\NewSupplierOrderEvent($order))->toOthers();
+            } catch (\Exception $e) {
+                \Log::error("B2B Broadcast Error: " . $e->getMessage());
+            }
+        }
+
+        return response()->json([
+            'message' => 'تم إرسال طلب التوريد بنجاح.',
+            'order'   => $order->load('product')
+        ], 201);
+    }
+
+    /**
+     * List all B2B orders for the authenticated supplier.
+     */
+    public function index(Request $request)
+    {
+        $user = $request->user();
+        
+        $supplier = \App\Models\Supplier::withoutGlobalScopes()
+            ->where('user_id', $user->id)
+            ->firstOrFail();
+
+        $orders = SupplierOrder::with(['product', 'store'])
+            ->where('supplier_id', $supplier->id)
+            ->latest()
+            ->get();
+
+        return response()->json($orders);
+    }
+
+    /**
+     * Update the status of a B2B order.
+     */
+    public function updateStatus(Request $request, $id)
+    {
+        $request->validate([
+            'status' => 'required|in:pending,processing,shipped,completed,cancelled'
+        ]);
+
+        $order = SupplierOrder::with(['product' => function($q) {
+            $q->withoutGlobalScopes();
+        }, 'store'])->findOrFail($id);
+
+        $oldStatus = $order->status;
+        $order->status = $request->status;
+        $order->save();
+
+        // Use safe variables and null-safe operators
+        $productName = $order->product?->name ?? 'منتج غير محدد';
+        $storeName = $order->store?->name ?? 'متجر غير محدد';
+
+        // 1. Send Notifications to Store Admins
+        if ($order->store) {
+            $adminUsers = \App\Models\User::where('store_id', $order->store_id)
+                ->where('role', \App\Models\User::ROLE_ADMIN)
+                ->get();
+
+            $message = "";
+            $url = "";
+
+            if ($request->status === 'processing') {
+                $message = "قام المورد بتحديث حالة طلبك للمنتج ({$productName}) إلى: جاري التجهيز 📦";
+            } elseif ($request->status === 'shipped') {
+                $message = "تم شحن طلبك للمنتج ({$productName})! 🚀 وصلت فاتورة جديدة للمراجعة.";
+                $url = "/purchases";
+            }
+
+            if ($message) {
+                Notification::send($adminUsers, new B2BOrderStatusNotification(
+                    $order->id,
+                    $productName,
+                    $request->status,
+                    $message,
+                    $url
+                ));
+            }
+        }
+
+        // 2. Automated Purchase Invoice on 'shipped'
+        if ($request->status === 'shipped' && $oldStatus !== 'shipped') {
+            $exchangeRate = \App\Models\Setting::get('exchange_rate', 1);
+            
+            $purchase = \App\Models\Purchase::create([
+                'store_id'          => $order->store_id,
+                'supplier_id'       => $order->supplier_id,
+                'user_id'           => $request->user()->id,
+                'total_amount'      => $order->quantity * ($order->price_at_order_syr ?? $order->product?->price ?? 0),
+                'notes'             => "طلب B2B تلقائي رقم #{$order->id} لمتجر {$storeName}",
+                'exchange_rate'     => $exchangeRate,
+                'invoice_number'    => 'B2B-' . $order->id . '-' . time(),
+                'status'            => 'pending_approval',
+            ]);
+
+            \App\Models\PurchaseItem::create([
+                'store_id'         => $order->store_id,
+                'purchase_id'      => $purchase->id,
+                'product_id'       => $order->product_id,
+                'quantity'         => $order->quantity,
+                'unit_cost_price'  => $order->price_at_order_syr ?? $order->product?->price ?? 0,
+                'subtotal'         => $order->quantity * ($order->price_at_order_syr ?? $order->product?->price ?? 0),
+            ]);
+        }
+
+        return response()->json([
+            'message' => 'تم تحديث حالة الطلب بنجاح.',
+            'order'   => $order->fresh(['product', 'store'])
+        ]);
+    }
+}
