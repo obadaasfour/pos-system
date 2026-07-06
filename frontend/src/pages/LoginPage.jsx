@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useParams, Navigate } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import api from '../api';
-import { LogIn, Mail, Lock, AlertCircle, Zap, ShieldCheck, Eye, EyeOff } from 'lucide-react';
+import { useAuth } from '../context/AuthContext';
+import { LogIn, Mail, Lock, AlertCircle, Zap, ShieldCheck, Eye, EyeOff, ArrowRight } from 'lucide-react';
 
-const LoginPage = ({ onLogin }) => {
-    const { slug } = useParams();
+
+const LoginPage = () => {
+    const { onLogin } = useAuth();
+    const navigate = useNavigate();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('password');
     const [rememberMe, setRememberMe] = useState(false);
@@ -42,17 +45,13 @@ const LoginPage = ({ onLogin }) => {
         }
 
         try {
-            // Smart endpoint selection:
-            // 1. If we have a slug in URL, use it.
-            // 2. Otherwise, use global login (which now supports all roles).
-            const endpoint = slug ? `/${slug}/login` : '/super-admin/login';
+            // Unified global login endpoint
+            const response = await api.post('/login', { email, password, device_name: 'browser' });
             
-            const response = await api.post(endpoint, { email, password, device_name: 'browser' });
-            
-            // onLogin in AuthContext will now handle smart redirection to /super-admin, /supplier, or /:slug
-            onLogin(response.data.token, response.data.user, response.data.slug || slug);
+            // onLogin in AuthContext will handle smart redirection
+            onLogin(response.data.token, response.data.user, response.data.slug);
         } catch (err) {
-            console.error("Unified login attempt failed:", err.response?.data);
+            console.error("Login attempt failed:", err.response?.data);
             setError(err.response?.data?.message || 'فشل تسجيل الدخول. يرجى التحقق من بياناتك.');
         } finally {
             setLoading(false);
@@ -60,8 +59,9 @@ const LoginPage = ({ onLogin }) => {
     };
 
     return (
-        <div className="min-h-screen flex font-sans transition-colors duration-500 selection:bg-blue-100" dir="rtl">
-            {/* Decorative left panel */}
+        <div className="min-h-screen flex font-sans transition-colors duration-500 selection:bg-blue-100 bg-white" dir="rtl">
+
+            {/* Decorative left panel (Reverted to Blue style) */}
             <div className="hidden lg:flex w-1/2 bg-gradient-to-br from-blue-700 via-blue-600 to-indigo-700 flex-col items-center justify-center p-12 relative overflow-hidden">
                 <div className="absolute -top-24 -left-24 w-96 h-96 bg-white/5 rounded-full" />
                 <div className="absolute -bottom-32 -right-16 w-80 h-80 bg-white/5 rounded-full" />
@@ -81,28 +81,38 @@ const LoginPage = ({ onLogin }) => {
                         ].map((f, index) => (
                             <div
                                 key={f.title}
-                                className="flex items-center gap-4 bg-white/10 rounded-2xl p-4 backdrop-blur-sm cursor-pointer transition-all duration-300 hover:scale-105 hover:bg-white/20 hover:shadow-2xl hover:shadow-blue-900/40 animate-fade-in opacity-0"
-                                style={{ animationDelay: `${(index + 1) * 150}ms`, animationFillMode: 'forwards' }}
+                                className="flex items-center gap-4 bg-white/10 rounded-2xl p-4 backdrop-blur-sm cursor-pointer transition-all duration-300 hover:scale-105 hover:bg-white/20 hover:shadow-2xl animate-fade-in"
+                                style={{ animationDelay: `${(index + 1) * 150}ms` }}
                             >
                                 <span className="text-2xl transition-transform duration-500 group-hover:rotate-12">{f.icon}</span>
                                 <div><p className="font-bold text-white text-sm">{f.title}</p><p className="text-blue-200 text-xs">{f.desc}</p></div>
                             </div>
                         ))}
                     </div>
+
+                    <div className="pt-8">
+                        <button onClick={() => navigate('/')} className="flex items-center gap-2 text-white/70 hover:text-white transition-colors mx-auto text-sm font-bold">
+                            <ArrowRight size={16} /> العودة للرئيسية
+                        </button>
+                    </div>
                 </div>
             </div>
 
-            {/* Form */}
-            <div className="flex-1 flex items-center justify-center bg-slate-50 p-8 transition-colors duration-500">
-                <div className="w-full max-w-sm">
-                    <div className="lg:hidden flex items-center gap-3 mb-8">
+            {/* Form Side (White Mode) */}
+            <div className="flex-1 flex flex-col bg-white transition-colors duration-500 relative">
+                {/* Theme Toggle Removed */}
+
+                <div className="flex-1 flex items-center justify-center p-8">
+                    <div className="w-full max-w-sm">
+                        <div className="lg:hidden flex items-center gap-3 mb-8">
+
                         <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center animate-pulse"><Zap size={20} className="text-white" /></div>
-                        <span className="font-extrabold text-slate-800 text-xl transition-colors">Cash POS</span>
+                        <span className="font-extrabold text-slate-950 text-xl transition-colors">Cash POS</span>
                     </div>
 
                     <div className="mb-8">
-                        <h2 className="text-3xl font-extrabold text-slate-800 transition-colors">{greeting.text}</h2>
-                        <p className="text-slate-400 mt-2 text-sm">{greeting.sub}</p>
+                        <h2 className="text-3xl font-black text-slate-950 transition-colors">{greeting.text}</h2>
+                        <p className="text-slate-500 mt-2 text-sm font-bold">{greeting.sub}</p>
                     </div>
 
                     {error && (
@@ -114,20 +124,20 @@ const LoginPage = ({ onLogin }) => {
 
                     <form onSubmit={handleSubmit} className="space-y-5">
                         <div>
-                            <label className="block text-sm font-semibold text-slate-700 mb-1.5 transition-colors">البريد الإلكتروني</label>
+                            <label className="block text-sm font-black text-slate-900 mb-1.5 transition-colors">البريد الإلكتروني</label>
                             <div className="relative">
                                 <span className="absolute inset-y-0 right-3 flex items-center text-slate-400 pointer-events-none transition-colors"><Mail size={17} /></span>
                                 <input id="email-input" type="email" value={email} onChange={e => setEmail(e.target.value)}
-                                    className="w-full bg-white border border-slate-200 rounded-xl py-3 pr-10 pl-4 text-sm text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-blue-400 focus:border-transparent outline-none transition-all shadow-sm"
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3.5 pr-10 pl-4 text-sm text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-blue-400 focus:border-transparent outline-none transition-all font-bold"
                                     placeholder="email@example.com" required />
                             </div>
                         </div>
                         <div>
-                            <label className="block text-sm font-semibold text-slate-700 mb-1.5 transition-colors">كلمة المرور</label>
+                            <label className="block text-sm font-black text-slate-900 mb-1.5 transition-colors">كلمة المرور</label>
                             <div className="relative group/input">
                                 <span className="absolute inset-y-0 right-3 flex items-center text-slate-400 pointer-events-none transition-colors"><Lock size={17} /></span>
                                 <input id="password-input" type={showPassword ? "text" : "password"} value={password} onChange={e => setPassword(e.target.value)}
-                                    className="w-full bg-white border border-slate-200 rounded-xl py-3 pr-10 pl-12 text-sm text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-blue-400 focus:border-transparent outline-none transition-all shadow-sm"
+                                    className="w-full bg-slate-50 border border-slate-200 rounded-xl py-3.5 pr-10 pl-12 text-sm text-slate-900 placeholder:text-slate-400 focus:ring-2 focus:ring-blue-400 focus:border-transparent outline-none transition-all font-bold"
                                     placeholder="••••••••" required />
                                 <button
                                     type="button"
@@ -147,7 +157,7 @@ const LoginPage = ({ onLogin }) => {
                             </label>
                         </div>
                         <button id="login-btn" type="submit" disabled={loading}
-                            className="w-full flex items-center justify-center gap-2.5 py-3.5 rounded-2xl font-bold text-sm bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed shadow-lg shadow-blue-200 active:scale-95 transition-all">
+                            className="w-full flex items-center justify-center gap-2.5 py-4 rounded-2xl font-bold text-sm bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed shadow-lg shadow-blue-100 active:scale-95 transition-all">
                             {loading
                                 ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                                 : <><LogIn size={18} /><span>تسجيل الدخول</span></>
@@ -155,14 +165,14 @@ const LoginPage = ({ onLogin }) => {
                         </button>
                     </form>
 
-                    <div className="flex items-center gap-2 justify-center mt-6 text-slate-400 text-xs">
+                    <div className="flex items-center gap-2 justify-center mt-8 text-slate-500 text-[10px] font-black uppercase tracking-widest opacity-80">
                         <ShieldCheck size={14} />
                         <span>بيانات محمية بتشفير SSL</span>
                     </div>
-                    <p className="text-center text-xs text-slate-300 mt-4">© 2026 جميع الحقوق محفوظة لنظام Cash POS</p>
                 </div>
             </div>
         </div>
+    </div>
     );
 };
 

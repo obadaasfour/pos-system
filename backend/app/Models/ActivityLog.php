@@ -31,8 +31,20 @@ class ActivityLog extends Model
     public static function log($actionType, $description, $old = null, $new = null)
     {
         $user = auth()->user();
+        
+        $storeId = null;
+        if ($user) {
+            if ($user->role === 'SUPER_ADMIN') {
+                // If Super Admin, use TenantContext (resolved from slug)
+                // If not set, it stays null (Global log)
+                $storeId = \App\Models\TenantContext::getStoreId();
+            } else {
+                $storeId = $user->store_id;
+            }
+        }
+
         return self::create([
-            'store_id'    => $user?->store_id ?? 1,
+            'store_id'    => $storeId,
             'user_id'     => $user?->id,
             'user_name'   => $user?->name ?? 'System',
             'action_type' => $actionType,

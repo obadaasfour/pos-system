@@ -12,7 +12,7 @@ class ProductBatch extends Model
 
     protected $fillable = [
         'store_id', 'product_id', 'purchase_id', 'uuid', 'original_quantity',
-        'remaining_qty', 'cost_usd', 'exchange_rate', 'cost_local', 'sale_price', 'price_currency'
+        'remaining_qty', 'cost_usd', 'exchange_rate', 'cost_local', 'sale_price', 'price_currency', 'planned_price_usd', 'sale_price_usd'
     ];
 
     protected static function boot()

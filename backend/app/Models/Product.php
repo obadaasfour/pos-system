@@ -14,7 +14,7 @@ class Product extends Model
 
     protected $fillable = [
         'store_id', 'category_id', 'supplier_id', 'uuid', 'name', 'barcode', 'description', 
-        'stock_quantity', 'min_quantity', 'image_path', 'cost_price', 'price_usd', 'price_syr'
+        'stock_quantity', 'min_quantity', 'image_path', 'cost_price', 'price_usd', 'price_syr', 'planned_price_usd', 'sale_price_usd'
     ];
 
     protected static function boot()
@@ -32,7 +32,7 @@ class Product extends Model
         return $this->belongsTo(Supplier::class);
     }
 
-    protected $appends = ['current_cost', 'current_cost_usd', 'price_usd', 'price', 'image_url', 'purchase_exchange_rate'];
+    protected $appends = ['current_cost', 'current_cost_usd', 'price_usd', 'price', 'image_url', 'purchase_exchange_rate', 'planned_price_usd', 'sale_price_usd'];
 
     public function category()
     {
@@ -72,22 +72,13 @@ class Product extends Model
     public function getPriceUsdAttribute()
     {
         $batch = $this->batches()->orderBy('id', 'asc')->first();
-        $rate = (float) Setting::get('exchange_rate', 1);
-        if ($rate <= 0) $rate = 1;
 
         if (!$batch) {
             // Fallback to product defaults
-            return (float) ($this->attributes['price_usd'] ?? 0);
+            return (float) ($this->attributes['sale_price_usd'] ?? $this->attributes['planned_price_usd'] ?? $this->attributes['price_usd'] ?? 0);
         }
 
-        $price = (float) $batch->sale_price;
-        $currency = $batch->price_currency ?: 'SYP';
-
-        if ($currency === 'USD') {
-            return $price; // Already USD
-        } else {
-            return round($price / $rate, 2); // SYP to USD
-        }
+        return (float) ($batch->sale_price_usd ?? $batch->planned_price_usd ?? 0);
     }
 
     /**
@@ -95,22 +86,10 @@ class Product extends Model
      */
     public function getPriceAttribute()
     {
-        $batch = $this->batches()->orderBy('id', 'asc')->first();
         $rate = (float) Setting::get('exchange_rate', 1);
+        if ($rate <= 0) $rate = 1;
 
-        if (!$batch) {
-            // Fallback to product defaults
-            return (float) ($this->attributes['price_syr'] ?? 0);
-        }
-
-        $price = (float) $batch->sale_price;
-        $currency = $batch->price_currency ?: 'SYP';
-
-        if ($currency === 'USD') {
-            return round($price * $rate, 0); // USD to SYP
-        } else {
-            return $price; // Already SYP
-        }
+        return round($this->price_usd * $rate, 0);
     }
 
     /**
@@ -129,5 +108,19 @@ class Product extends Model
     {
         $batch = $this->batches()->orderBy('id', 'asc')->first();
         return $batch ? (float) $batch->exchange_rate : null;
+    }
+
+    public function getPlannedPriceUsdAttribute()
+    {
+        $batch = $this->batches()->orderBy('id', 'asc')->first();
+        if ($batch && $batch->planned_price_usd > 0) {
+            return (float) $batch->planned_price_usd;
+        }
+        return (float) ($this->attributes['planned_price_usd'] ?? 0);
+    }
+
+    public function getSalePriceUsdAttribute()
+    {
+        return $this->price_usd;
     }
 }

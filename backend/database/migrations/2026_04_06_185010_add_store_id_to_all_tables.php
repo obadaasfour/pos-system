@@ -26,19 +26,30 @@ return new class extends Migration
             'payment_logs'
         ];
 
+        // Tables that SHOULD allow null store_id (Global tables)
+        $globalTables = ['users', 'activity_logs', 'suppliers'];
+
         foreach ($tables as $tableName) {
             if (Schema::hasTable($tableName)) {
-                Schema::table($tableName, function (Blueprint $table) use ($tableName) {
-                    $table->foreignId('store_id')->nullable()->after('id')->constrained('stores')->onDelete('cascade');
-                });
+                // 1. Add column if not exists
+                if (!Schema::hasColumn($tableName, 'store_id')) {
+                    Schema::table($tableName, function (Blueprint $table) {
+                        $table->foreignId('store_id')->nullable()->after('id')->constrained('stores')->onDelete('cascade');
+                    });
+                }
 
-                // Assign default store (ID: 1) for existing data
-                DB::table($tableName)->update(['store_id' => 1]);
-
-                // Make it non-nullable after filling data
-                Schema::table($tableName, function (Blueprint $table) {
-                    $table->unsignedBigInteger('store_id')->nullable(false)->change();
-                });
+                // 2. Only enforce non-nullable for non-global tables
+                if (!in_array($tableName, $globalTables)) {
+                    // We don't update to 1 here anymore because Main Store might not exist
+                    // Instead, we leave them nullable if they are empty, 
+                    // or the user must handle data integrity during migration.
+                    
+                    /* 
+                    Schema::table($tableName, function (Blueprint $table) {
+                        $table->unsignedBigInteger('store_id')->nullable(false)->change();
+                    });
+                    */
+                }
             }
         }
     }

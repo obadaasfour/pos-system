@@ -10,7 +10,13 @@ class SuppliersController extends Controller
 {
     public function index(Request $request)
     {
+        // If Super Admin, bypass any store filtering (Global Suppliers)
         $query = Supplier::latest();
+        
+        if ($request->user() && $request->user()->role === \App\Models\User::ROLE_SUPER_ADMIN) {
+            // Suppliers might be global or tenant-based, for Super Admin we show all.
+            // If we have a global scope on Supplier, we would use withoutGlobalScopes() here.
+        }
 
         if ($request->has('search')) {
             $search = $request->search;

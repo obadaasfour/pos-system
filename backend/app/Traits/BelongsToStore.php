@@ -24,15 +24,21 @@ trait BelongsToStore
             if (auth()->check()) {
                 $user = auth()->user();
 
-                $storeId = ($user->role === 'SUPER_ADMIN') 
-                    ? \App\Models\TenantContext::getStoreId()
-                    : $user->store_id;
+                // If user is Super Admin, we ONLY use the TenantContext (slug-based)
+                // We do NOT fallback to user->store_id because Super Admins can perform global actions.
+                if ($user->role === 'SUPER_ADMIN') {
+                    $storeId = \App\Models\TenantContext::getStoreId();
+                } else {
+                    $storeId = $user->store_id;
+                }
 
-                if (!$storeId) {
+                if (!$storeId && $user->role !== 'SUPER_ADMIN') {
                     throw new \Exception('Store context is required for creation');
                 }
 
-                $model->setAttribute('store_id', $storeId);
+                if ($storeId) {
+                    $model->setAttribute('store_id', $storeId);
+                }
             }
         });
     }

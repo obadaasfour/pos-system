@@ -19,6 +19,8 @@ use App\Http\Controllers\Api\DashboardController;
 use App\Http\Controllers\Api\ActivityController;
 use App\Http\Controllers\Api\CategoryController;
 use App\Http\Controllers\Api\PendingOrderController;
+use App\Http\Controllers\Api\SuperAdminController;
+use App\Http\Controllers\Api\SupplierPortalController;
 use App\Http\Middleware\AdminOnly;
 use App\Http\Middleware\SuperAdminOnly;
 use App\Http\Middleware\TenantMiddleware;
@@ -41,7 +43,9 @@ Route::middleware(['auth:sanctum', SuperAdminOnly::class])->prefix('super-admin'
 });
 
 // ─── Public Internal routes (Global login & re-hydration) ───────────────
+Route::post('/login',             [AuthController::class, 'login']);
 Route::post('/super-admin/login', [AuthController::class, 'login']);
+Route::post('/demo-login',        [AuthController::class, 'demoLogin']);
 
 // ─── Protected Shared routes (Admins, Cashiers, Suppliers) ───────────────
 Route::middleware('auth:sanctum')->group(function () {
@@ -51,20 +55,17 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/announcements', [\App\Http\Controllers\Api\AnnouncementController::class, 'index']);
 
-    // Universal Notifications (Database Channel)
-    Route::get('/notifications', [\App\Http\Controllers\Api\NotificationController::class, 'index']);
-    Route::post('/notifications/{id}/read', [\App\Http\Controllers\Api\NotificationController::class, 'markAsRead']);
-    Route::post('/notifications/read-all', [\App\Http\Controllers\Api\NotificationController::class, 'markAllAsRead']);
+    Route::get('/announcements', [\App\Http\Controllers\Api\AnnouncementController::class, 'index']);
 
     // ─── Global Supplier Portal routes ──────────────────
     Route::middleware('supplier.role')->prefix('supplier')->group(function () {
+        Route::get('/stores', [SupplierPortalController::class, 'index']); // List all stores
+        Route::get('/stores/{id}/products', [SupplierPortalController::class, 'getStoreProducts']); // Secure products list
+        Route::post('/suggest', [SupplierPortalController::class, 'suggestProduct']); // Product suggestion
+        
         Route::get('/shortages', [SupplierPortalController::class, 'getShortages']);
         Route::patch('/shortages/{id}/processing', [SupplierPortalController::class, 'markAsProcessing']);
         Route::patch('/shortages/{id}/supplied', [SupplierPortalController::class, 'markAsSupplied']);
-        Route::get('/products',  [SupplierPortalController::class, 'getProducts']);
-        Route::post('/products',  [SupplierPortalController::class, 'storeProduct']);
-        Route::put('/products/{id}',  [SupplierPortalController::class, 'updateProduct']);
-        Route::delete('/products/{id}', [SupplierPortalController::class, 'deleteProduct']);
         Route::get('/purchases', [SupplierPortalController::class, 'getPurchases']);
         
         // B2B Direct Orders Management
@@ -74,6 +75,14 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Global Settings access (Exchange Rate, etc.)
     Route::get('/settings', [SettingController::class, 'index']);
+
+    // Global Suppliers (Shared between all stores + Super Admin)
+    Route::middleware(AdminOnly::class)->group(function () {
+        Route::get('/suppliers',         [SuppliersController::class, 'index']);
+        Route::post('/suppliers',        [SuppliersController::class, 'store']);
+        Route::put('/suppliers/{id}',    [SuppliersController::class, 'update']);
+        Route::delete('/suppliers/{id}', [SuppliersController::class, 'destroy']);
+    });
 });
 
 Route::get('/login-fallback', function () {
@@ -84,6 +93,8 @@ Route::get('/validate-slug/{slug}', function ($slug) {
     $exists = \App\Models\Store::where('slug', $slug)->exists();
     return response()->json(['valid' => $exists]);
 });
+
+Route::get('/{slug}/public-sales/{uuid}', [SalesController::class, 'showPublic']);
 
 // ─── Slug-based Store routes ─────────────────────────────
 Route::prefix('{slug}')->middleware(TenantMiddleware::class)->group(function () {
@@ -103,6 +114,16 @@ Route::prefix('{slug}')->middleware(TenantMiddleware::class)->group(function () 
         });
         Route::post('/supplier-orders', [\App\Http\Controllers\Api\SupplierOrderController::class, 'store']);
         Route::get('/announcements/latest', [\App\Http\Controllers\Api\AnnouncementController::class, 'latest']);
+
+        // B2B Workflow
+        Route::get('/b2b/proposals', [\App\Http\Controllers\Api\B2BWorkflowController::class, 'index']);
+        Route::post('/b2b/order-proposal/{id}', [\App\Http\Controllers\Api\B2BWorkflowController::class, 'orderProposal']);
+        Route::post('/b2b/orders/{id}/receive-price', [\App\Http\Controllers\Api\B2BWorkflowController::class, 'receiveAndPrice']);
+
+        // Store-Scoped Notifications
+        Route::get('/notifications', [\App\Http\Controllers\Api\NotificationController::class, 'index']);
+        Route::post('/notifications/{id}/read', [\App\Http\Controllers\Api\NotificationController::class, 'markAsRead']);
+        Route::post('/notifications/read-all', [\App\Http\Controllers\Api\NotificationController::class, 'markAllAsRead']);
 
         // Sales (Cashier + Admin)
         Route::get('/sales/latest', [SalesController::class, 'latestSale']);
@@ -134,12 +155,8 @@ Route::prefix('{slug}')->middleware(TenantMiddleware::class)->group(function () 
             Route::get('/purchases/{id}',     [PurchasesController::class, 'show']);
             Route::post('/purchases/{id}/confirm', [PurchasesController::class, 'confirmReceipt']);
 
-            // Suppliers
-            Route::get('/suppliers',         [SuppliersController::class, 'index']);
-            Route::post('/suppliers',        [SuppliersController::class, 'store']);
-            Route::put('/suppliers/{id}',    [SuppliersController::class, 'update']);
-            Route::delete('/suppliers/{id}', [SuppliersController::class, 'destroy']);
-
+            // Redundant routes removed and moved to global scope
+            
             // Reports
             Route::get('/reports/monthly', [ReportsController::class, 'monthly']);
             Route::get('/reports/pdf-download', [ReportsController::class, 'downloadPDF']);

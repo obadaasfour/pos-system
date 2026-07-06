@@ -59,6 +59,8 @@ class SoundService {
         // Double low beep
         playBeep(220, 0, 0.15); // A3
         playBeep(220, 0.2, 0.2); // A3 again
+    }
+
     /**
      * Distinctive multi-tone notification for new orders.
      */

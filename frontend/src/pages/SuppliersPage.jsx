@@ -13,7 +13,8 @@ import { confirmDialog, toastSuccess, toastError } from '../utils/swal';
 const EMPTY_FORM = { name: '', phone: '', email: '', address: '', enableLogin: false, password: '' };
 
 const SuppliersPage = () => {
-    const { isAuthenticated, isLoading: authLoading } = useAuth();
+    const { user, isAuthenticated, isLoading: authLoading } = useAuth();
+    const isSuperAdmin = user?.role === 'SUPER_ADMIN';
     const [suppliers, setSuppliers] = useState([]);
     const [pagination, setPagination] = useState(null);
     const [loading,   setLoading]   = useState(false);
@@ -123,10 +124,12 @@ const SuppliersPage = () => {
                         >
                             <RefreshCw size={22} className={loading ? 'animate-spin' : ''} />
                         </button>
-                        <button onClick={openAdd}
-                            className="flex items-center gap-3 px-8 py-3.5 rounded-[1.5rem] bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-black text-sm shadow-xl shadow-blue-200 hover:from-blue-700 hover:to-indigo-700 transition-all hover:-translate-y-0.5 active:translate-y-0">
-                            <Plus size={20} /> إضافة مورد
-                        </button>
+                        {isSuperAdmin && (
+                            <button onClick={openAdd}
+                                className="flex items-center gap-3 px-8 py-3.5 rounded-[1.5rem] bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-black text-sm shadow-xl shadow-blue-200 hover:from-blue-700 hover:to-indigo-700 transition-all hover:-translate-y-0.5 active:translate-y-0">
+                                <Plus size={20} /> إضافة مورد
+                            </button>
+                        )}
                     </div>
                 </div>
             </div>
@@ -226,11 +229,7 @@ const SuppliersPage = () => {
                     <div className="px-6 py-4 border-b border-slate-100">
                         <h2 className="font-extrabold text-slate-800">قائمة الموردين</h2>
                     </div>
-                    {loading ? (
-                        <div className="flex items-center justify-center py-16 text-slate-400">
-                            <RefreshCw size={24} className="animate-spin ml-3" /> جاري التحميل...
-                        </div>
-                    ) : suppliers.length === 0 ? (
+                    {suppliers.length === 0 && !loading ? (
                         <div className="flex flex-col items-center justify-center py-16 text-slate-300">
                             <Truck size={56} className="mb-4 opacity-30" />
                             <p className="text-sm font-medium text-slate-400">لا يوجد موردون مسجلون</p>
@@ -245,8 +244,12 @@ const SuppliersPage = () => {
                                         </div>
                                         <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                             <button onClick={() => setLinkingSupplier(s)} title="ربط منتجات" className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"><LinkIcon size={15} /></button>
-                                            <button onClick={() => openEdit(s)} className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"><Edit2 size={15} /></button>
-                                            <button onClick={() => handleDelete(s.id, s.name)} className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"><Trash2 size={15} /></button>
+                                            {isSuperAdmin && (
+                                                <>
+                                                    <button onClick={() => openEdit(s)} className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition-colors"><Edit2 size={15} /></button>
+                                                    <button onClick={() => handleDelete(s.id, s.name)} className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors"><Trash2 size={15} /></button>
+                                                </>
+                                            )}
                                         </div>
                                     </div>
                                     <h3 className="font-extrabold text-slate-800 mb-2">{s.name}</h3>

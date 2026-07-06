@@ -5,6 +5,7 @@ import { VitePWA } from 'vite-plugin-pwa'
 
 // https://vitejs.dev/config/
 export default defineConfig({
+  base: './', // ✅ مضاف لحل مشكلة الـ 404 وتوجيه المسارات في GitHub Pages
   plugins: [
     tailwindcss(),
     react(),
@@ -43,7 +44,9 @@ export default defineConfig({
       },
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
-        navigateFallback: '/index.html',
+        maximumFileSizeToCacheInBytes: 4000000,
+        // ✅ تم تعديلها لتتوافق مع المسار النسبي للاستضافة المباشرة
+        navigateFallback: 'index.html',
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
@@ -75,9 +78,15 @@ export default defineConfig({
     host: '0.0.0.0',
     port: 5173,
     https: false,
+    watch: {
+      usePolling: true,
+    },
+    hmr: {
+      host: 'asus-lp.local',
+    },
     proxy: {
       '/api': {
-        target: 'http://localhost:8000',
+        target: 'http://pos-nginx-backend:8000', // Update target to use docker service name
         changeOrigin: true,
         secure: false,
       }

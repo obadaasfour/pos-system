@@ -11,7 +11,7 @@ import {
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import { CAIRO_FONT } from "../utils/CairoFont";
-import { fixArabic, cleanBase64 } from "../utils/invoiceGenerator";
+import { fixArabic } from "../utils/invoiceGenerator";
 import { SHOP_LOGO } from "../utils/Logo";
 
 const formatPrice = (n) => Number(n || 0).toLocaleString('ar-SY') + ' ل.س';
@@ -61,7 +61,7 @@ const ReportsPage = () => {
         // Logo
         if (SHOP_LOGO) {
             try {
-                doc.addImage(cleanBase64(SHOP_LOGO), 'PNG', 10, 8, 20, 20);
+                doc.addImage(SHOP_LOGO, 'PNG', 10, 8, 20, 20);
             } catch (e) {}
         }
 
@@ -123,11 +123,7 @@ const ReportsPage = () => {
         doc.save(`Report_${data.month}.pdf`);
     };
 
-    if (loading || !data) return (
-        <div className="flex h-full items-center justify-center bg-slate-100">
-            <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
-        </div>
-    );
+    if (loading || !data) return null;
 
     return (
         <div className="flex flex-col h-full bg-slate-50 overflow-hidden" dir="rtl">

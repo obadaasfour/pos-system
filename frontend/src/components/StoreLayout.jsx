@@ -12,8 +12,10 @@ import {
 } from 'lucide-react';
 import GlobalExchangeBadge from './GlobalExchangeBadge';
 import Topbar from './Topbar';
+import NotificationCenter from './NotificationCenter';
 import toast, { Toaster } from 'react-hot-toast';
 import NotFoundPage from '../pages/NotFoundPage';
+import B2BProposalsManager from './B2BProposalsManager';
 
 // Simple cache for valid slugs to improve performance
 const validSlugsCache = new Set();
@@ -74,14 +76,22 @@ const StoreLayout = () => {
     const navigate = useNavigate();
     const location = useLocation();
     
-    const [collapsed, setCollapsed] = useState(false);
+    const [collapsed, setCollapsed] = useState(true);
     const [openGroups, setOpenGroups] = useState({});
     const [isValidSlug, setIsValidSlug] = useState(null); // null = checking, true = valid, false = invalid
+    const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
 
     // ─── 1. Slug Verification & Access Guards ───────────────────
     useEffect(() => {
         const verifySlug = async () => {
             if (!slug) {
+                setIsValidSlug(false);
+                return;
+            }
+
+            // Reserved Keywords: Ignore these and don't treat them as store slugs
+            const reserved = ['supplier-portal', 'super-admin', 'login', 'register', 'main', 'api'];
+            if (reserved.includes(slug.toLowerCase())) {
                 setIsValidSlug(false);
                 return;
             }
@@ -128,9 +138,9 @@ const StoreLayout = () => {
     const resolveRoute = (path) => `/${slug}${path.startsWith('/') ? path : `/${path}`}`;
 
     const handleLogout = async () => {
-        try { await api.post(`/${slug}/logout`); } catch (_) { }
+        try { await api.post('/logout'); } catch (_) { }
         onLogout();
-        navigate(`/${slug}/login`, { replace: true });
+        navigate('/login', { replace: true });
     };
 
     const toggleGroup = (index) => {
@@ -139,10 +149,27 @@ const StoreLayout = () => {
     };
 
     return (
-        <div className="flex h-screen bg-slate-100 font-sans overflow-hidden" dir="rtl">
+        <div className="flex h-screen bg-slate-100 font-sans overflow-hidden mt-0 relative" dir="rtl">
             <Toaster />
 
-            <aside className={`hidden md:block flex-col bg-slate-900 text-white transition-all duration-300 shrink-0 shadow-2xl z-20 ${collapsed ? 'w-16' : 'w-64'}`}>
+            {/* Mobile Sidebar Overlay */}
+            <AnimatePresence>
+                {isMobileSidebarOpen && (
+                    <motion.div 
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        onClick={() => setIsMobileSidebarOpen(false)}
+                        className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-40 md:hidden"
+                    />
+                )}
+            </AnimatePresence>
+
+            <aside className={`
+                fixed inset-y-0 right-0 z-50 md:relative md:flex flex-col h-full bg-slate-900 text-white transition-all duration-300 shrink-0 shadow-2xl border-l border-white/5 
+                ${isMobileSidebarOpen ? 'translate-x-0' : 'translate-x-full md:translate-x-0'}
+                ${collapsed ? 'md:w-16' : 'md:w-64 w-72'}
+            `}>
                 {/* Brand */}
                 <div className={`flex items-center gap-3 px-4 py-5 border-b border-white/5 ${collapsed ? 'justify-center' : ''}`}>
                     <div className="w-9 h-9 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shrink-0 shadow-lg">
@@ -168,7 +195,7 @@ const StoreLayout = () => {
                     </div>
                 )}
 
-                <nav className="flex-1 py-4 px-2 space-y-1 overflow-y-auto scrollbar-none">
+                <nav className="flex-1 py-4 px-2 space-y-1 overflow-y-auto elegant-scrollbar">
                     {STORE_NAV_GROUPS.map((group, gIdx) => {
                         const GroupIcon = group.icon;
                         if (group.roles && !group.roles.includes(user?.role)) return null;
@@ -222,7 +249,27 @@ const StoreLayout = () => {
                 </div>
             </aside>
 
-            <main className="flex-1 overflow-y-auto overflow-x-hidden flex flex-col bg-slate-50 relative">
+            <main className="flex-1 overflow-y-auto overflow-x-hidden flex flex-col bg-slate-50 relative transition-colors duration-300">
+                {user?.is_demo && (
+                    <div className="sticky top-0 z-50 bg-gradient-to-r from-blue-600 to-indigo-700 text-white px-4 py-2 flex items-center justify-between shadow-lg">
+                        <div className="flex items-center gap-3">
+                            <div className="w-6 h-6 bg-white/20 rounded flex items-center justify-center">
+                                <Zap size={14} className="fill-white" />
+                            </div>
+                            <span className="text-xs font-black uppercase tracking-wider">وضع التجربة الفورية نشط</span>
+                        </div>
+                        <div className="flex items-center gap-4">
+                            <p className="hidden sm:block text-[11px] font-medium opacity-90">أنت تتصفح النظام الآن ببيانات تجريبية. هل أعجبك ما تراه؟</p>
+                            <button 
+                                onClick={() => navigate('/register')}
+                                className="bg-white text-blue-600 px-4 py-1 rounded-full text-[11px] font-black hover:bg-blue-50 transition-colors shadow-sm"
+                            >
+                                اشترك الآن
+                            </button>
+                        </div>
+                    </div>
+                )}
+                <B2BProposalsManager />
                 <div className="flex-1 relative">
                     <Outlet />
                 </div>

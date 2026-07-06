@@ -7,21 +7,29 @@ use App\Models\Store;
 use App\Models\Order;
 use App\Models\User;
 use App\Models\ActivityLog;
+use App\Services\StoreManagementService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class SuperAdminController extends Controller
 {
+    protected $storeService;
+
+    public function __construct(StoreManagementService $storeService)
+    {
+        $this->storeService = $storeService;
+    }
+
     /**
      * Get global statistics across all stores.
      */
     public function getStats()
     {
         $totalStores = Store::count();
-        $activeStores = Store::where('is_active', true)->count();
+        $activeStores = Store::where('status', 'active')->count();
         $inactiveStores = $totalStores - $activeStores;
 
-        // Sum of all orders across all stores (StoreScope is bypassed for Super Admin)
+        // Sum of all orders across all stores
         $totalSales = Order::sum('total_amount');
 
         // Top Store by total sales
@@ -58,7 +66,6 @@ class SuperAdminController extends Controller
     {
         $restrictedSlugs = ['super-admin', 'api', 'login', 'register', 'dashboard', 'admin'];
         
-        // Normalize slug early
         $slug = strtolower(preg_replace('/[^a-z0-9-]/', '', str_replace(' ', '-', $request->slug)));
         $request->merge(['slug' => $slug]);
 
@@ -88,36 +95,25 @@ class SuperAdminController extends Controller
             'phone' => 'nullable|string',
         ]);
 
-        return DB::transaction(function () use ($validated) {
-            // 1. Create the Store
-            $store = Store::create([
-                'name' => $validated['name'],
-                'slug' => $validated['slug'],
-                'address' => $validated['address'] ?? null,
-                'phone' => $validated['phone'] ?? null,
-            ]);
-
-            // 2. Create the Admin User
-            $admin = User::create([
-                'store_id' => $store->id,
-                'name' => 'مدير المحل: ' . $store->name,
-                'email' => $validated['admin_email'],
-                'password' => \Illuminate\Support\Facades\Hash::make($validated['admin_password']),
-                'role' => User::ROLE_ADMIN,
-            ]);
-
-            ActivityLog::log('add', "تم إنشاء محل جديد: {$store->name} مع بريد المدير: {$admin->email}", null, $store->toArray());
+        try {
+            $result = $this->storeService->createStore($validated);
 
             return response()->json([
-                'store' => $store,
-                'admin_email' => $admin->email,
-                'login_url' => '/' . $store->slug . '/login'
+                'store' => $result['store'],
+                'admin_email' => $result['admin']->email,
             ], 201);
-        });
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Store Creation Error: ' . $e->getMessage());
+            
+            return response()->json([
+                'message' => 'فشل إنشاء المتجر: ' . $e->getMessage(),
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 
     /**
-     * Update store status and details.
+     * Update store details.
      */
     public function updateStore(Request $request, $id)
     {
@@ -126,7 +122,6 @@ class SuperAdminController extends Controller
 
         $validated = $request->validate([
             'name' => 'sometimes|string|max:255',
-            'is_active' => 'sometimes|boolean',
             'address' => 'nullable|string',
             'phone' => 'nullable|string',
         ]);
@@ -139,17 +134,22 @@ class SuperAdminController extends Controller
     }
 
     /**
-     * Toggle store active status.
+     * Suspend/Activate store.
      */
-    public function toggleStatus($id)
+    public function toggleStatus(Request $request, $id)
     {
         $store = Store::findOrFail($id);
-        $store->is_active = !$store->is_active;
-        $store->save();
+        $action = $request->input('action'); // 'suspend' or 'activate'
 
-        ActivityLog::log('edit', $desc);
+        if ($action === 'suspend') {
+            $this->storeService->suspendStore($store);
+            return response()->json(['message' => "تم إيقاف المتجر {$store->name} بنجاح", 'status' => 'suspended']);
+        } elseif ($action === 'activate') {
+            $this->storeService->activateStore($store);
+            return response()->json(['message' => "تم تفعيل المتجر {$store->name} بنجاح", 'status' => 'active']);
+        }
 
-        return response()->json(['message' => $desc, 'is_active' => $store->is_active]);
+        return response()->json(['message' => 'إجراء غير صالح'], 400);
     }
 
     /**
@@ -157,18 +157,8 @@ class SuperAdminController extends Controller
      */
     public function destroy(Request $request, $id)
     {
-        // 0. Extra security layer on top of middleware
-        if ($request->user()->role !== User::ROLE_SUPER_ADMIN) {
-            return response()->json(['message' => 'Unauthorized.'], 403);
-        }
-
         $store = Store::findOrFail($id);
-        $name = $store->name;
-
-        // DB Cascade deletion handles linked records
-        $store->delete();
-
-        ActivityLog::log('delete', "تم حذف المتجر نهائياً: {$name}");
+        $this->storeService->hardDeleteStore($store);
 
         return response()->json(['message' => 'تم حذف الفرع وكافة بياناته بنجاح']);
     }

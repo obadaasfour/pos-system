@@ -8,10 +8,10 @@ use App\Traits\BelongsToStore;
 
 class Supplier extends Model
 {
-    use HasFactory, BelongsToStore;
+    use HasFactory;
 
     protected $fillable = [
-        'user_id', 'store_id', 'name', 'contact_person', 'email', 'phone', 'address'
+        'user_id', 'name', 'contact_person', 'email', 'phone', 'address'
     ];
 
     public function user()

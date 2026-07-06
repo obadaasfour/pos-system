@@ -56,7 +56,21 @@ php artisan migrate --seed
 3. **Frontend Server**: `npm run dev`
 
 ### ⚡ Quick Start (Windows Only):
-Run the provided `start_project.bat` file in the root directory to launch all services automatically.
+Run the provided `start_project.bat` for local XAMPP setup or **`run-pos.bat`** to launch everything via **Docker**.
+
+### 🐳 Running with Docker (Professional/Recommended)
+If you have Docker installed, you can run the entire system with a single command:
+1. Ensure `Asus-Lp.local` resolves to your local machine (Check your `hosts` file).
+2. Run the **`run-pos.bat`** script.
+OR manually:
+```bash
+docker-compose up -d
+```
+The system will be accessible at:
+- Frontend: [http://Asus-Lp.local:5173](http://Asus-Lp.local:5173)
+- Backend: [http://Asus-Lp.local:8000](http://Asus-Lp.local:8000)
+- Reverb: Port 8090
+
 
 ---
 

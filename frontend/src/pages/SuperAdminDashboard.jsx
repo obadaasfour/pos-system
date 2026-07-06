@@ -25,11 +25,7 @@ const SuperAdminDashboard = () => {
         }
     };
 
-    if (loading) return (
-        <div className="flex h-full items-center justify-center bg-slate-50">
-            <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin" />
-        </div>
-    );
+    if (loading || !stats) return null;
 
     return (
         <div className="p-8 bg-slate-50 min-h-screen space-y-8 font-sans" dir="rtl">

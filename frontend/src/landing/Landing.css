@@ -1,0 +1,110 @@
+/* Landing Page Isolated Styles - 2026 Premium Edition */
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;900&display=swap');
+
+.landing-root {
+  scroll-behavior: smooth;
+  background-color: #020617; /* Slate-950 */
+  color: #f8fafc;
+  font-family: 'Outfit', sans-serif;
+}
+
+.hero-gradient {
+  background: 
+    radial-gradient(circle at 20% 30%, rgba(37, 99, 235, 0.08) 0%, transparent 40%),
+    radial-gradient(circle at 80% 70%, rgba(79, 70, 229, 0.08) 0%, transparent 40%),
+    radial-gradient(circle at 50% -20%, rgba(37, 99, 235, 0.15) 0%, transparent 60%);
+}
+
+.glass-card {
+  background: rgba(255, 255, 255, 0.02);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  transition: all 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.glass-card:hover {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: rgba(37, 99, 235, 0.3);
+  transform: translateY(-10px) scale(1.02);
+  box-shadow: 0 40px 80px -20px rgba(0, 0, 0, 0.5), 0 0 40px rgba(37, 99, 235, 0.1);
+}
+
+.glow-blue {
+  box-shadow: 0 0 30px rgba(37, 99, 235, 0.3);
+}
+
+.text-glow-blue {
+  text-shadow: 0 0 40px rgba(37, 99, 235, 0.6);
+}
+
+.floating-slow {
+  animation: float-slow 8s ease-in-out infinite;
+}
+
+@keyframes float-slow {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-30px) rotate(2deg); }
+}
+
+.animate-spin-slow {
+  animation: spin 10s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.perspective-1000 {
+  perspective: 1000px;
+}
+
+/* RTL Adjustments */
+[dir="rtl"] .hero-gradient {
+  text-align: right;
+}
+
+.rtl {
+  direction: rtl;
+}
+
+.landing-root {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(37, 99, 235, 0.4) transparent;
+}
+
+.landing-root::-webkit-scrollbar {
+  width: 5px;
+}
+
+.landing-root::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.landing-root::-webkit-scrollbar-thumb {
+  background: rgba(37, 99, 235, 0.4);
+  border-radius: 20px;
+}
+
+.landing-root::-webkit-scrollbar-thumb:hover {
+  background: rgba(37, 99, 235, 0.8);
+}
+
+body.landing-page-active {
+    background-color: #020617;
+    scrollbar-color: rgba(37, 99, 235, 0.4) transparent;
+}
+
+body.landing-page-active::-webkit-scrollbar-track {
+    background: #020617;
+}
+
+body.landing-page-active::-webkit-scrollbar-thumb {
+    background: rgba(37, 99, 235, 0.4);
+    border-radius: 20px;
+}
+
+body.landing-page-active::-webkit-scrollbar-thumb:hover {
+    background: rgba(37, 99, 235, 0.8);
+}

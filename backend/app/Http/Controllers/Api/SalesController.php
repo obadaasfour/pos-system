@@ -74,6 +74,8 @@ class SalesController extends Controller
                 $totalAmount    = 0;
                 $totalPurchasePrice = 0;
                 $orderItemsData = [];
+                $rate = (float) Setting::get('exchange_rate', 1);
+                if ($rate <= 0) $rate = 1;
 
                 foreach ($request->items as $item) {
                     $pid = $item['product_id'];
@@ -108,7 +110,10 @@ class SalesController extends Controller
                         }
                     }
 
-                    $batchPrice = (float) $batch->sale_price;
+                    $batchPrice = $batch->sale_price_usd > 0 
+                        ? round($batch->sale_price_usd * $rate, 0)
+                        : (float) $batch->sale_price;
+
                     $subtotal     = $batchPrice * $requestedQty;
                     $costSubtotal = $batch->cost_local * $requestedQty;
                     $totalAmount += $subtotal;
@@ -146,6 +151,7 @@ class SalesController extends Controller
                     'status'         => 'completed',
                     'invoice_number' => $maxInvoice + 1,
                     'store_id'       => $storeId,
+                    'exchange_rate'  => (float)($request->exchange_rate ?? $rate)
                 ];
 
 
@@ -266,5 +272,95 @@ class SalesController extends Controller
         }
 
         return response()->json(['order' => $order]);
+    }
+
+    public function showPublic($slug, $uuid)
+    {
+        try {
+            // 1. Fetch store bypassing any potential tenant scopes
+            $store = \App\Models\Store::withoutGlobalScopes()->where('slug', $slug)->first();
+            if (!$store) {
+                return response()->json(['message' => 'المتجر غير موجود.', 'debug' => "slug=$slug"], 404);
+            }
+
+            // 2. Query the order with global scopes disabled to ensure UUID matches freely
+            $order = Order::withoutGlobalScopes()
+                ->where('uuid', $uuid)
+                ->where('store_id', $store->id)
+                ->first();
+
+            if (!$order) {
+                return response()->json(['message' => 'الفاتورة غير موجودة.', 'debug' => "store_id={$store->id} uuid=$uuid"], 404);
+            }
+
+            // 3. Set the global TenantContext store ID manually so relationships can resolve correctly
+            \App\Models\TenantContext::setStoreId($store->id);
+
+            // Load relations under the context (withoutGlobalScopes on eager loads too)
+            $order->load(['items', 'user', 'customer']);
+            foreach ($order->items as $item) {
+                $item->product; // access lazily without scoped eager-load
+            }
+
+            // Custom masked array response
+            $items = [];
+            foreach ($order->items as $item) {
+                $priceUsd = 0.00;
+                if ($item->batch_id) {
+                    $batchQuery = \App\Models\ProductBatch::withoutGlobalScopes();
+                    if (is_numeric($item->batch_id)) {
+                        $batch = $batchQuery->where('id', $item->batch_id)->first();
+                    } elseif (\Illuminate\Support\Str::isUuid($item->batch_id)) {
+                        $batch = $batchQuery->where('uuid', $item->batch_id)->first();
+                    } else {
+                        $batch = null;
+                    }
+                    
+                    if ($batch) {
+                        $priceUsd = (float)($batch->sale_price_usd ?? $batch->planned_price_usd ?? 0);
+                    }
+                }
+                if ($priceUsd === 0.00 && $item->product) {
+                    $priceUsd = (float)($item->product->sale_price_usd ?? $item->product->planned_price_usd ?? $item->product->price_usd ?? 0);
+                }
+
+                $items[] = [
+                    'name'        => $item->product?->name ?? $item->name ?? 'منتج مجهول',
+                    'quantity'    => (int)$item->quantity,
+                    'unit_price'  => (float)$item->unit_price,
+                    'price_usd'   => $priceUsd,
+                    'total_local' => round((float)$item->unit_price * (int)$item->quantity, 2)
+                ];
+            }
+
+            $response = [
+                'uuid'           => $order->uuid,
+                'invoice_number' => $order->invoice_number,
+                'created_at'     => $order->created_at->toIso8601String(),
+                'payment_method' => $order->payment_method,
+                'total_amount'   => (float)$order->total_amount,
+                'exchange_rate'  => (float)($order->exchange_rate ?? 1.00),
+                'customer_name'  => optional($order->customer)->name,
+                'cashier_name'   => optional($order->user)->name ?? 'موظف المبيعات',
+                'store_name'     => $store->name,
+                'store_logo'     => $store->logo_path ?? null,
+                'items'          => $items
+            ];
+            return response()->json($response);
+
+        } catch (\Throwable $e) {
+            \Log::error('[showPublic] 500: ' . $e->getMessage(), [
+                'slug' => $slug ?? null,
+                'uuid' => $uuid ?? null,
+                'line' => $e->getLine(),
+                'file' => $e->getFile(),
+            ]);
+            return response()->json([
+                'message' => 'خطأ داخلي في الخادم.',
+                'error'   => $e->getMessage(),
+                'file'    => basename($e->getFile()),
+                'line'    => $e->getLine(),
+            ], 500);
+        }
     }
 }

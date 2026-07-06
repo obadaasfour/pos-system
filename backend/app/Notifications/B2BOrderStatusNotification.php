@@ -7,6 +7,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
 use Illuminate\Notifications\Messages\BroadcastMessage;
+use Illuminate\Broadcasting\PrivateChannel;
 
 class B2BOrderStatusNotification extends Notification
 {
@@ -36,6 +37,19 @@ class B2BOrderStatusNotification extends Notification
     public function via(object $notifiable): array
     {
         return ['database', 'broadcast'];
+    }
+
+    /**
+     * Determine the broadcast channel for the notification.
+     */
+    public function broadcastOn(object $notifiable): array
+    {
+        if (isset($notifiable->store_id)) {
+            return [
+                new PrivateChannel('stores.' . $notifiable->store_id),
+            ];
+        }
+        return [];
     }
 
     /**

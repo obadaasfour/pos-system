@@ -142,16 +142,6 @@ const ActivityLogsPage = () => {
                             </tr>
                         </thead>
                         <tbody className="divide-y divide-slate-50">
-                            {loading && (
-                                <tr>
-                                    <td colSpan="7" className="py-20 text-center">
-                                        <div className="flex flex-col items-center gap-3">
-                                            <Loader2 size={40} className="text-blue-600 animate-spin" />
-                                            <p className="text-sm font-bold text-slate-400">جاري جلب السجلات...</p>
-                                        </div>
-                                    </td>
-                                </tr>
-                            )}
                             {!loading && logs.length === 0 && (
                                 <tr>
                                     <td colSpan="7" className="py-20 text-center">

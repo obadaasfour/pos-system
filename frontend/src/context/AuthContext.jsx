@@ -20,6 +20,7 @@ export const AuthProvider = ({ children }) => {
     });
 
     const [token, setToken] = useState(() => localStorage.getItem('pos_token'));
+    const [slug, setSlug] = useState(() => localStorage.getItem('pos_slug'));
     const [isLoading, setIsLoading] = useState(() => !!localStorage.getItem('pos_token'));
 
     // Re-hydration: Verify token on mount
@@ -41,6 +42,7 @@ export const AuthProvider = ({ children }) => {
                         localStorage.removeItem('pos_slug');
                         setToken(null);
                         setUser(null);
+                        setSlug(null);
                     }
                 }
             }
@@ -66,15 +68,20 @@ export const AuthProvider = ({ children }) => {
 
         setToken(token);
         setUser(userData);
+        if (slug) setSlug(slug);
 
-        // Smart Redirect
+        // Smart Redirect Logic (Unified Auth Service)
         if (userData.role === 'SUPER_ADMIN') {
             window.location.href = '/super-admin';
         } else if (userData.role === 'SUPPLIER') {
-            window.location.href = '/supplier/dashboard';
+            window.location.href = '/supplier-portal';
         } else if (slug) {
-            // Store Admin and Cashiers go directly to POS for faster workflow
-            window.location.href = `/${slug}/pos`;
+            // Redirect Managers (admin) and Cashiers (cashier) to POS immediately
+            if (userData.role === 'admin' || userData.role === 'cashier') {
+                window.location.href = `/${slug}/pos`;
+            } else {
+                window.location.href = `/${slug}/dashboard`;
+            }
         } else {
             window.location.href = '/';
         }
@@ -92,20 +99,22 @@ export const AuthProvider = ({ children }) => {
      * handleLogout — Clear session and state
      */
     const handleLogout = () => {
-        const isSuper = user?.role === 'SUPER_ADMIN';
         localStorage.removeItem('pos_token');
         localStorage.removeItem('pos_user');
         localStorage.removeItem('pos_slug');
         setToken(null);
         setUser(null);
+        setSlug(null);
         
-        window.location.href = isSuper ? '/super-admin/login' : '/';
+        // Unified redirect to the main login page
+        window.location.href = '/login';
     };
 
     return (
         <AuthContext.Provider value={{
             user,
             token,
+            slug,
             isAuthenticated,
             isLoading,
             isAdmin,

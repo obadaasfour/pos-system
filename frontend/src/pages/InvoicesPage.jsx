@@ -55,13 +55,13 @@ const InvoicesPage = () => {
         }
     };
 
-    const handlePrint = (invoice) => {
+    const handlePrint = async (invoice) => {
         const itemsForPrint = (invoice?.items || []).map(item => ({
             ...item.product,
             quantity: item.quantity,
             price: item.unit_price
         }));
-        generateInvoice(invoice, itemsForPrint, currentStore);
+        await generateInvoice(invoice, itemsForPrint, currentStore);
     };
 
     // Footer totals for current page
@@ -112,12 +112,7 @@ const InvoicesPage = () => {
                     className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col"
                     style={{ height: 'calc(100vh - 200px)' }}
                 >
-                    {loading ? (
-                        <div className="flex flex-col items-center justify-center py-20 text-slate-400 flex-1">
-                            <RefreshCw size={32} className="animate-spin mb-4" />
-                            <p className="font-medium">جاري جلب الفواتير...</p>
-                        </div>
-                    ) : invoices.length === 0 ? (
+                    {invoices.length === 0 && !loading ? (
                         <div className="flex flex-col items-center justify-center py-20 text-slate-300 flex-1">
                             <FileText size={64} className="mb-4 opacity-20" />
                             <p className="font-medium text-slate-400">لا توجد فواتير مطابقة</p>

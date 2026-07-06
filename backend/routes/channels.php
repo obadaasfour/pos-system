@@ -10,6 +10,10 @@ Broadcast::channel('store.{storeId}', function ($user, $storeId) {
     return (int) $user->store_id === (int) $storeId;
 });
 
+Broadcast::channel('stores.{storeId}', function ($user, $storeId) {
+    return (int) $user->store_id === (int) $storeId;
+});
+
 Broadcast::channel('scanner.{storeId}.{sessionId}', function ($user, $storeId) {
     return (int) $user->store_id === (int) $storeId;
 });

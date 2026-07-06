@@ -3,11 +3,11 @@ import Dexie from 'dexie';
 export const db = new Dexie('pos_offline_db');
 
 // Schema versioning
-db.version(1).stores({
-    products: 'id, uuid, barcode, category_id, name',
-    categories: 'id, uuid, name',
-    product_batches: 'id, uuid, product_id',
-    customers: 'id, uuid, name, phone',
+db.version(2).stores({
+    products: '++id, uuid, barcode, category_id, name',
+    categories: '++id, uuid, name',
+    product_batches: '++id, uuid, product_id',
+    customers: '++id, uuid, name, phone',
     orders: 'uuid, customer_id, status, created_at',
     sync_queue: '++id, table, action, timestamp',
     app_cache: 'key' // For settings, exchange rate, etc.
@@ -51,15 +51,90 @@ export const compressImage = async (file, maxWidth = 300, quality = 0.7) => {
  * ── Helper functions for Data Persistence ─────────────────
  */
 
-export const cacheProducts = async (products) => {
+export const cacheProducts = async (inputData) => {
+    // Handle Laravel resource wrapper (res.data.data) or direct array (res.data)
+    const products = Array.isArray(inputData) ? inputData : (inputData?.data && Array.isArray(inputData.data) ? inputData.data : []);
+    
+    if (products.length === 0) {
+        if (inputData && !Array.isArray(inputData)) console.warn('[Dexie] cacheProducts received non-array input and could not find .data wrapper.', inputData);
+        return;
+    }
+
+    const validProducts = [];
+    const invalidProducts = [];
+
+    for (const p of products) {
+        if (p && p.id !== undefined && p.id !== null && !isNaN(Number(p.id))) {
+            validProducts.push({
+                ...p,
+                id: Number(p.id),
+                category_id: p.category_id ? Number(p.category_id) : null
+            });
+        } else {
+            invalidProducts.push(p);
+        }
+    }
+
+    if (invalidProducts.length > 0) {
+        console.error(`[Dexie] DataError: ${invalidProducts.length} products skipped due to missing or invalid 'id' field.`, invalidProducts);
+    }
+
+    if (validProducts.length === 0) return;
+
     return db.transaction('rw', db.products, async () => {
-        // We use put for idempotency
-        await db.products.bulkPut(products.map(p => ({
-            ...p,
-            id: Number(p.id),
-            category_id: p.category_id ? Number(p.category_id) : null
-        })));
+        await db.products.bulkPut(validProducts);
     });
+};
+
+export const cacheCategories = async (inputData) => {
+    // Handle Laravel resource wrapper (res.data.data) or direct array (res.data)
+    const categories = Array.isArray(inputData) ? inputData : (inputData?.data && Array.isArray(inputData.data) ? inputData.data : []);
+
+    if (categories.length === 0) {
+        if (inputData && !Array.isArray(inputData)) console.warn('[Dexie] cacheCategories received non-array input and could not find .data wrapper.', inputData);
+        return;
+    }
+
+    const validCategories = [];
+    const invalidCategories = [];
+
+    for (const c of categories) {
+        if (c && c.id !== undefined && c.id !== null && !isNaN(Number(c.id))) {
+            validCategories.push({
+                ...c,
+                id: Number(c.id)
+            });
+        } else {
+            invalidCategories.push(c);
+        }
+    }
+
+    if (invalidCategories.length > 0) {
+        console.error(`[Dexie] DataError: ${invalidCategories.length} categories skipped due to missing or invalid 'id' field.`, invalidCategories);
+    }
+
+    if (validCategories.length === 0) return;
+
+    return db.transaction('rw', db.categories, async () => {
+        await db.categories.bulkPut(validCategories);
+    });
+};
+
+export const cacheSettings = async (inputData) => {
+    if (!inputData) return;
+
+    // Extract setting object if wrapped in Laravel resource
+    const settings = inputData.data ? inputData.data : inputData;
+
+    try {
+        await db.app_cache.put({
+            key: 'app_settings',
+            value: settings,
+            updated_at: new Date().toISOString()
+        });
+    } catch (err) {
+        console.error("[Dexie] Failed to cache settings:", err, settings);
+    }
 };
 
 export const getCachedProducts = async () => {
@@ -93,6 +168,10 @@ export const savePendingOrder = async (order) => {
             }
         }
     });
+};
+
+export const clearProducts = async () => {
+    return db.products.clear();
 };
 
 export const getSyncQueueCount = async () => {

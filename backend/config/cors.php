@@ -19,7 +19,7 @@ return [
 
     'allowed_methods' => ['*'],
 
-    'allowed_origins' => ['*'],
+    'allowed_origins' => ['http://asus-lp.local:5173', 'http://localhost:5173'],
 
     'allowed_origins_patterns' => ['#^https?://192\.168\.\d+\.\d+(:5173)?$#'],
 

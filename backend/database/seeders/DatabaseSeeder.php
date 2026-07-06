@@ -15,14 +15,12 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // The default store is already created in the stores table migration.
-        
         \App\Models\User::factory()->create([
             'name' => 'Super Admin',
             'email' => 'admin@admin.com',
             'password' => \Illuminate\Support\Facades\Hash::make('password'),
             'role' => 'SUPER_ADMIN',
-            'store_id' => 1,
+            'store_id' => null,
         ]);
     }
 }

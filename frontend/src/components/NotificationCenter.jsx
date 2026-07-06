@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Bell, CheckCircle2, Package, Truck, Info, Clock } from 'lucide-react';
+import { Bell, CheckCircle2, Package, Truck, Info, Clock, Lightbulb } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useNavigate, useParams } from 'react-router-dom';
 import api from '../api';
@@ -15,7 +15,7 @@ const NotificationCenter = () => {
 
     const fetchNotifications = async () => {
         try {
-            const res = await api.get('/notifications');
+            const res = await api.get(`/${slug}/notifications`);
             setNotifications(res.data);
         } catch (err) {
             console.error("Failed to fetch notifications", err);
@@ -49,14 +49,14 @@ const NotificationCenter = () => {
         }
     }, [user]);
 
-    const markAsRead = async (id, url) => {
+    const markAsRead = async (id, targetUrl) => {
         try {
-            await api.post(`/notifications/${id}/read`);
+            await api.post(`/${slug}/notifications/${id}/read`);
             setNotifications(prev => prev.filter(n => n.id !== id));
             setIsOpen(false);
-            if (url) {
+            if (targetUrl) {
                 // If the app is in Store context, prepend slug
-                const target = slug ? `/${slug}${url}` : url;
+                const target = slug ? `/${slug}${targetUrl}` : targetUrl;
                 navigate(target);
             }
         } catch (err) {
@@ -66,7 +66,7 @@ const NotificationCenter = () => {
 
     const markAllAsRead = async () => {
         try {
-            await api.post('/notifications/read-all');
+            await api.post(`/${slug}/notifications/read-all`);
             setNotifications([]);
             setIsOpen(false);
         } catch (err) {
@@ -82,6 +82,7 @@ const NotificationCenter = () => {
 
     const getIcon = (type) => {
         switch (type) {
+            case 'b2b_proposal': return <Lightbulb size={16} className="text-amber-400" />;
             case 'b2b_order_status': return <Truck size={16} className="text-blue-500" />;
             case 'new_b2b_order': return <Package size={16} className="text-amber-500" />;
             default: return <Info size={16} className="text-slate-400" />;
@@ -92,11 +93,11 @@ const NotificationCenter = () => {
         <div className="relative">
             <button 
                 onClick={() => setIsOpen(!isOpen)}
-                className="relative p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all"
+                className="relative size-8 text-slate-400 hover:text-white hover:bg-white/10 rounded-lg transition-all flex items-center justify-center bg-white/5 border border-white/5"
             >
-                <Bell size={22} />
+                <Bell size={18} />
                 {unreadCount > 0 && (
-                    <span className="absolute top-1.5 right-1.5 w-5 h-5 bg-rose-500 text-white text-[10px] font-black flex items-center justify-center rounded-full border-2 border-white animate-pulse">
+                    <span className="absolute -top-1 -right-1 w-4 h-4 bg-rose-500 text-white text-[9px] font-black flex items-center justify-center rounded-full border border-slate-900 animate-pulse">
                         {unreadCount > 9 ? '+9' : unreadCount}
                     </span>
                 )}

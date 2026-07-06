@@ -17,6 +17,7 @@ class Store extends Model
         'phone',
         'tax_percentage',
         'is_active',
+        'status',
     ];
 
     protected $casts = [

@@ -97,7 +97,7 @@ const DashboardPage = () => {
         if (!from || !to) return;
         setLoading(true);
         try {
-            const res = await api.get('/dashboard', { params: { from, to } });
+            const res = await api.get(`/${slug}/dashboard`, { params: { from, to } });
             setData(res.data);
         } catch (err) { console.error(err); }
         finally { setLoading(false); }
@@ -121,20 +121,16 @@ const DashboardPage = () => {
         { key: 'custom', label: 'مخصص', icon: Settings2 },
     ];
 
-    if (loading || !data || !data.stats) return (
-        <div className="flex h-full items-center justify-center bg-slate-100">
-            <div className="w-10 h-10 border-4 border-blue-600 border-t-transparent rounded-full animate-spin" />
-        </div>
-    );
+    if (loading || !data || !data.stats) return null;
 
     const { stats, sales_history } = data;
 
     return (
-        <div className="p-8 bg-slate-100 min-h-full space-y-10 pb-20" dir="rtl">
+        <div className="p-4 sm:p-8 bg-slate-100 min-h-full space-y-6 sm:space-y-10 pb-20" dir="rtl">
             {/* Standardized Page Header */}
             <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-8">
                 <div className="space-y-1">
-                    <h1 className="text-4xl font-black text-slate-800 tracking-tight">لوحة الإحصائيات</h1>
+                    <h1 className="text-3xl sm:text-4xl font-black text-slate-800 tracking-tight">لوحة الإحصائيات</h1>
                     <p className="text-slate-500 font-bold flex items-center gap-2">
                         <Calendar size={16} className="text-blue-500" />
                         إحصائيات من <span className="text-blue-600 underline decoration-2 underline-offset-4">{data.period?.from}</span> إلى <span className="text-blue-600 underline decoration-2 underline-offset-4">{data.period?.to}</span>
@@ -142,7 +138,7 @@ const DashboardPage = () => {
                 </div>
 
                 {/* Header Actions / Filters */}
-                <div className="flex flex-wrap items-center gap-3 bg-white p-4 rounded-3xl border border-slate-200 shadow-xl shadow-slate-200/50 transition-all hover:shadow-2xl">
+                <div className="flex flex-col sm:flex-row flex-wrap items-center gap-3 bg-white p-3 sm:p-4 rounded-3xl border border-slate-200 shadow-xl shadow-slate-200/50 transition-all hover:shadow-2xl w-full lg:w-auto">
                     <button
                         onClick={() => setShowQrModal(true)}
                         className="flex items-center gap-2 px-6 py-2.5 bg-indigo-50 text-indigo-600 rounded-xl text-sm font-black hover:bg-indigo-100 transition-all border border-indigo-100"
@@ -252,7 +248,7 @@ const DashboardPage = () => {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 {/* Sales History Chart */}
                 <div className="lg:col-span-2 space-y-8">
-                    <div className="bg-white rounded-3xl p-8 border border-slate-200 shadow-sm">
+                    <div className="bg-white rounded-3xl p-4 sm:p-8 border border-slate-200 shadow-sm">
                         <div className="flex justify-between items-center mb-10">
                             <div>
                                 <h2 className="text-xl font-extrabold text-slate-800">حركة المبيعات</h2>
@@ -411,7 +407,7 @@ const DashboardPage = () => {
                             <p className="text-xs text-slate-400 mt-1">أكثر 5 أصناف تم تداولها اليوم</p>
                         </div>
                     </div>
-                    <div className="overflow-hidden bg-slate-50 rounded-2xl border border-slate-100 flex-1">
+                    <div className="overflow-x-auto bg-slate-50 rounded-2xl border border-slate-100 flex-1">
                         <table className="w-full text-right text-sm">
                             <thead className="bg-slate-100 text-slate-600 font-bold border-b border-slate-200">
                                 <tr>
@@ -449,7 +445,7 @@ const DashboardPage = () => {
                         </div>
                         <p className="text-xs text-slate-400 mt-1">أعلى 10 منتجات تم بيعها تاريخياً</p>
                     </div>
-                    <div className="overflow-hidden bg-slate-50 rounded-2xl border border-slate-100 flex-1 relative">
+                    <div className="overflow-x-auto bg-slate-50 rounded-2xl border border-slate-100 flex-1 relative">
                         <table className="w-full text-right text-sm">
                             <thead className="bg-slate-100 text-slate-600 font-bold border-b border-slate-200">
                                 <tr>
@@ -485,7 +481,7 @@ const DashboardPage = () => {
                         </div>
                         <p className="text-xs text-slate-400 mt-1">أعلى 10 منتجات مدرة للأرباح</p>
                     </div>
-                    <div className="overflow-hidden bg-slate-50 rounded-2xl border border-slate-100 flex-1 relative">
+                    <div className="overflow-x-auto bg-slate-50 rounded-2xl border border-slate-100 flex-1 relative">
                         <table className="w-full text-right text-sm">
                             <thead className="bg-slate-100 text-slate-600 font-bold border-b border-slate-200">
                                 <tr>

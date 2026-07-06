@@ -27,7 +27,7 @@ class UserController extends Controller
             'email' => $request->email,
             'password' => Hash::make($request->password),
             'role' => $request->role,
-            'store_id' => auth()->user()->store_id ?? 1,
+            'store_id' => auth()->user()->store_id, // Decouple from hardcoded ID 1
         ]);
 
         return response()->json(['message' => 'User created successfully', 'user' => $user], 201);

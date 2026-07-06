@@ -36,11 +36,17 @@ class AuthController extends Controller
         if ($isGlobalLogin) {
             // Suppliers and Super Admins are allowed to login globally
             if (!$isSuperAdmin && !$isSupplier) {
-                // If it's a standard user (admin/cashier) trying to login globally,
-                // we permit it but they MUST have a store_id so we can redirect them.
                 if (!$user->store_id) {
                     return response()->json([
                         'message' => 'عذراً، هذا الحساب غير مرتبطة بأي متجر أو صلاحية.',
+                    ], 403);
+                }
+
+                // Check if store is suspended
+                if ($user->store?->status === 'suspended') {
+                    return response()->json([
+                        'message' => 'عذراً، تم إيقاف هذا المتجر مؤقتاً. يرجى التواصل مع الإدارة.',
+                        'suspended' => true
                     ], 403);
                 }
             }
@@ -53,6 +59,14 @@ class AuthController extends Controller
                 return response()->json([
                     'message' => 'هذا الحساب غير تابع لهذا المتجر.',
                     'unauthorized_store' => true
+                ], 403);
+            }
+
+            // Check if store is suspended
+            if (!$isSuperAdmin && $user->store?->status === 'suspended') {
+                return response()->json([
+                    'message' => 'عذراً، تم إيقاف هذا المتجر مؤقتاً. يرجى التواصل مع الإدارة.',
+                    'suspended' => true
                 ], 403);
             }
 
@@ -92,6 +106,111 @@ class AuthController extends Controller
             'token'   => $token,
             'message' => 'تم إنشاء الحساب بنجاح.',
         ], 201);
+    }
+
+    public function demoLogin(Request $request)
+    {
+        $request->validate([
+            'type' => 'required|in:restaurant,supermarket,pharmacy',
+        ]);
+
+        $type = $request->type;
+        $email = "demo-{$type}@cashpos.local";
+        $slug = "demo-{$type}";
+        $name = "متجر تجريبي - " . ($type === 'restaurant' ? 'مطعم' : ($type === 'supermarket' ? 'سوبر ماركت' : 'صيدلية'));
+
+        // Find or Create Demo Store
+        $wasCreated = false;
+        $store = \App\Models\Store::where('slug', $slug)->first();
+        if (!$store) {
+            $store = \App\Models\Store::create([
+                'slug' => $slug,
+                'name' => $name,
+                'address' => 'عنوان تجريبي',
+                'phone' => '0900000000',
+                'status' => 'active'
+            ]);
+            $wasCreated = true;
+        }
+
+        // Find or Create Demo User
+        $user = User::firstOrCreate(
+            ['email' => $email],
+            [
+                'name' => 'Demo User',
+                'password' => Hash::make('demo1234'),
+                'role' => 'admin',
+                'store_id' => $store->id
+            ]
+        );
+
+        if ($wasCreated) {
+            $this->seedDemoData($store, $type);
+        }
+
+        // Generate Token
+        $token = $user->createToken('demo_token')->plainTextToken;
+
+        return response()->json([
+            'token' => $token,
+            'user'  => $user->load('store'),
+            'slug'  => $slug,
+            'is_demo' => true
+        ]);
+    }
+
+    private function seedDemoData($store, $type)
+    {
+        $data = [
+            'restaurant' => [
+                'categories' => ['وجبات سريعة', 'مشروبات باردة', 'حلويات'],
+                'products' => [
+                    ['name' => 'تشيز برجر دبل', 'price' => 150000, 'cat' => 'وجبات سريعة'],
+                    ['name' => 'بيتزا مارغريتا', 'price' => 120000, 'cat' => 'وجبات سريعة'],
+                    ['name' => 'كوكا كولا 330مل', 'price' => 15000, 'cat' => 'مشروبات باردة'],
+                    ['name' => 'براونيز بالشوكولاتة', 'price' => 45000, 'cat' => 'حلويات'],
+                ]
+            ],
+            'supermarket' => [
+                'categories' => ['مواد غذائية', 'منظفات', 'أجبان وألبان'],
+                'products' => [
+                    ['name' => 'أرز بسمتي 1كغ', 'price' => 35000, 'cat' => 'مواد غذائية'],
+                    ['name' => 'زيت نباتي 1لتر', 'price' => 28000, 'cat' => 'مواد غذائية'],
+                    ['name' => 'مسحوق غسيل 2كغ', 'price' => 55000, 'cat' => 'منظفات'],
+                    ['name' => 'لبنة بلدية 500غ', 'price' => 22000, 'cat' => 'أجبان وألبان'],
+                ]
+            ],
+            'pharmacy' => [
+                'categories' => ['أدوية عامة', 'فيتامينات', 'عناية بالبشرة'],
+                'products' => [
+                    ['name' => 'بنادول إكسترا', 'price' => 12000, 'cat' => 'أدوية عامة'],
+                    ['name' => 'فيتامين C 1000ملغ', 'price' => 25000, 'cat' => 'فيتامينات'],
+                    ['name' => 'واقي شمسي 50+', 'price' => 85000, 'cat' => 'عناية بالبشرة'],
+                    ['name' => 'أموكسيسيلين 500ملغ', 'price' => 18000, 'cat' => 'أدوية عامة'],
+                ]
+            ]
+        ];
+
+        $currentData = $data[$type] ?? $data['supermarket'];
+
+        foreach ($currentData['categories'] as $catName) {
+            $cat = \App\Models\Category::create([
+                'store_id' => $store->id,
+                'name' => $catName
+            ]);
+
+            $prods = array_filter($currentData['products'], fn($p) => $p['cat'] === $catName);
+            foreach ($prods as $p) {
+                \App\Models\Product::create([
+                    'store_id' => $store->id,
+                    'category_id' => $cat->id,
+                    'name' => $p['name'],
+                    'price_syr' => $p['price'],
+                    'stock_quantity' => 100,
+                    'barcode' => 'DEMO-' . rand(1000, 9999)
+                ]);
+            }
+        }
     }
 
     public function logout(Request $request)

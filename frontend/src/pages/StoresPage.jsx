@@ -3,7 +3,7 @@ import api from '../api';
 import { 
     Store, Plus, Edit2, Trash2, CheckCircle, 
     XCircle, Users, Package, MapPin, Phone, 
-    RefreshCw, X, Save, AlertTriangle, ExternalLink, ShieldCheck
+    RefreshCw, X, Save, ExternalLink, ShieldCheck, PauseCircle, PlayCircle
 } from 'lucide-react';
 import swalRTL, { toastSuccess, toastError, confirmDialog } from '../utils/swal';
 
@@ -23,7 +23,6 @@ const StoreModal = ({ store, onClose, onSave }) => {
                 const res = await api.post('/super-admin/stores', formData);
                 onSave();
                 
-                // Show Interactive Success Modal for New Stores
                 const loginUrl = window.location.origin + res.data.login_url;
                 
                 const { value: action } = await swalRTL.fire({
@@ -38,34 +37,20 @@ const StoreModal = ({ store, onClose, onSave }) => {
                                 <p className="text-xs text-slate-400 mb-1">بريد المدير</p>
                                 <p className="text-sm font-bold text-blue-400">${res.data.admin_email}</p>
                             </div>
-                            <div className="bg-slate-800/50 p-4 rounded-2xl border border-slate-700 overflow-hidden">
-                                <p className="text-xs text-slate-400 mb-1 text-right">رابط الدخول</p>
-                                <div className="flex items-center gap-2 mt-2">
-                                    <input type="text" readonly value="${loginUrl}" id="swal-login-url" 
-                                           className="flex-1 bg-slate-900 border border-slate-700 rounded-xl px-3 py-2 text-[10px] font-mono text-emerald-400 outline-none" />
-                                </div>
-                            </div>
                         </div>
                     `,
                     showCancelButton: true,
-                    confirmButtonText: 'نسخ الرابط',
-                    cancelButtonText: 'إغلاق',
-                    footer: `<a href="${loginUrl}" target="_blank" class="text-blue-500 font-black text-xs hover:underline flex items-center gap-1">
-                                <ExternalLink size={12}/> فتح صفحة الدخول الآن
-                             </a>`,
+                    confirmButtonText: 'إغلاق',
+                    cancelButtonText: 'فتح صفحة الدخول',
                 });
 
-                if (action) {
-                    const copyText = document.getElementById('swal-login-url');
-                    copyText.select();
-                    navigator.clipboard.writeText(loginUrl);
-                    toastSuccess('تم نسخ الرابط للحافظة');
+                if (!action) {
+                    window.open(`/${res.data.store.slug}/dashboard`, '_blank');
                 }
             }
         } catch (err) {
             console.error('Save Store Error:', err);
             if (err.response?.status === 422) {
-                console.log('Validation Errors:', err.response.data.errors);
                 const firstError = Object.values(err.response.data.errors)[0][0];
                 toastError(firstError || 'بيانات غير صالحة');
             } else {
@@ -78,12 +63,12 @@ const StoreModal = ({ store, onClose, onSave }) => {
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in" dir="rtl">
-            <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="bg-white rounded-3xl w-full max-w-lg shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
                 <div className="p-6 bg-slate-900 flex justify-between items-center text-white">
                     <h3 className="text-lg font-black tracking-tight">{store?.id ? 'تعديل بيانات المحل' : 'إضافة محل جديد'}</h3>
                     <button onClick={onClose} className="p-2 text-slate-400 hover:text-rose-400 transition-colors"><X size={20}/></button>
                 </div>
-                <form onSubmit={handleSubmit} className="p-8 space-y-6 max-h-[80vh] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 pr-2">
+                <form onSubmit={handleSubmit} className="p-8 space-y-6 max-h-[80vh] overflow-y-auto scrollbar-thin">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div className="space-y-1.5">
                             <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest block pr-2">اسم المحل</label>
@@ -136,7 +121,6 @@ const StoreModal = ({ store, onClose, onSave }) => {
                                         value={formData.admin_password}
                                         onChange={e => setFormData({...formData, admin_password: e.target.value})}
                                     />
-                                    <p className="text-[9px] text-slate-400 pr-2">يجب أن تحتوي على حروف كبيرة وأرقام ورموز</p>
                                 </div>
                             </div>
                         </div>
@@ -197,41 +181,32 @@ const StoresPage = () => {
         }
     };
 
-    const toggleStatus = async (id, currentActive) => {
+    const handleToggleStatus = async (id, name, currentStatus) => {
+        const isSuspended = currentStatus === 'suspended';
         const result = await confirmDialog(
-            currentActive ? 'تعطيل المحلل' : 'تفعيل المحل',
-            currentActive ? 'لن يتمكن هذا المحل من العمل نهائياً حتى يتم إعادة تفعيله.' : 'سيتمكن المحل من البدء في العمل واستخدام النظام.',
-            'warning'
+            isSuspended ? 'تفعيل المتجر' : 'إيقاف المتجر مؤقتاً',
+            isSuspended ? `هل أنت متأكد من إعادة تفعيل المتجر "${name}"؟` : `هل أنت متأكد من إيقاف المتجر "${name}"؟ لن يتمكن مستخدموه من الدخول للنظام.`,
+            isSuspended ? 'success' : 'warning'
         );
         if (!result.isConfirmed) return;
 
         try {
-            await api.post(`/super-admin/stores/${id}/toggle`);
-            toastSuccess('تم التحديث بنجاح');
+            await api.post(`/super-admin/stores/${id}/toggle`, { action: isSuspended ? 'activate' : 'suspend' });
+            toastSuccess('تم تحديث حالة المتجر بنجاح');
             fetchStores();
         } catch (err) {
-            toastError('خطأ أثناء التحديث');
+            toastError('فشل في تحديث الحالة');
         }
     };
 
     const handleDelete = async (id, name) => {
-        const { value: typedName } = await swalRTL.fire({
-            title: 'حذف الفرع نهائياً؟ ⚠️',
-            text: `سيتم حذف المحل "${name}" وكافة بياناته (الموظفين، المبيعات، المخزون) للأبد. للتأكيد، يرجى كتابة اسم المحل أدناه:`,
-            input: 'text',
-            inputPlaceholder: name,
-            showCancelButton: true,
-            confirmButtonText: 'تأكيد الحذف النهائي',
-            cancelButtonText: 'تراجع',
-            confirmButtonColor: '#ef4444',
-            inputValidator: (value) => {
-                if (value !== name) {
-                    return 'يرجى كتابة اسم المحل بشكل صحيح للتأكيد';
-                }
-            }
-        });
+        const result = await confirmDialog(
+            'حذف الفرع نهائياً؟ ⚠️',
+            `سيتم حذف المحل "${name}" وكافة بياناته للأبد. لا يمكن التراجع عن هذا الإجراء.`,
+            'error'
+        );
 
-        if (typedName) {
+        if (result.isConfirmed) {
             try {
                 const res = await api.delete(`/super-admin/stores/${id}`);
                 toastSuccess(res.data.message);
@@ -246,21 +221,14 @@ const StoresPage = () => {
         try {
             const res = await api.post('/super-admin/stores/switch', { store_id: id });
             toastSuccess(res.data.message);
-            // Update local user data but keep the current tab in Super Admin
             localStorage.setItem('pos_user', JSON.stringify(res.data.user));
-            
-            // Open the store dashboard in a NEW TAB as requested
             window.open(`/${slug}/dashboard`, '_blank');
         } catch (err) {
             toastError('فشل التبديل بين المحلات');
         }
     };
 
-    if (loading) return (
-        <div className="flex h-full items-center justify-center bg-slate-50">
-            <RefreshCw className="animate-spin text-indigo-600" size={32} />
-        </div>
-    );
+    if (loading) return null;
 
     return (
         <div className="p-8 bg-slate-50 min-h-screen space-y-8 font-sans" dir="rtl">
@@ -268,99 +236,108 @@ const StoresPage = () => {
                 <div>
                     <h1 className="text-3xl font-black text-slate-900 tracking-tight flex items-center gap-3">
                         <Store className="text-indigo-600" size={32} />
-                        إدارة المحلات
+                        إدارة المتاجر المركزية
                     </h1>
-                    <p className="text-slate-500 font-medium mt-1">إضافة، تعديل ومراقبة جميع الفروع المسجلة</p>
+                    <p className="text-slate-500 font-medium mt-1">تحكم كامل في المتاجر، الحذف النهائي، والتعليق المؤقت</p>
                 </div>
                 <button 
                     onClick={() => { setEditStore(null); setShowModal(true); }}
-                    className="flex items-center gap-2 bg-indigo-600 text-white px-6 py-3.5 rounded-xl font-black text-sm shadow-xl shadow-indigo-100 hover:bg-indigo-700 hover:-translate-y-0.5 transition-all active:scale-95"
+                    className="flex items-center gap-2 bg-indigo-600 text-white px-6 py-4 rounded-2xl font-black text-sm shadow-xl shadow-indigo-100 hover:bg-indigo-700 hover:-translate-y-0.5 transition-all active:scale-95"
                 >
                     <Plus size={20} />
-                    <span>إضافة فرع جديد</span>
+                    <span>إضافة متجر جديد</span>
                 </button>
             </header>
 
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-sm overflow-hidden">
                 <table className="w-full text-right">
                     <thead className="bg-slate-50 text-slate-400 font-black text-[10px] uppercase tracking-widest border-b border-slate-100">
                         <tr>
-                            <th className="px-8 py-5">المحل</th>
-                            <th className="px-8 py-5">المعلومات</th>
-                            <th className="px-8 py-5 text-center">الإحصائيات</th>
-                            <th className="px-8 py-5 text-center">الحالة</th>
-                            <th className="px-8 py-5 text-left">إجراءات</th>
+                            <th className="px-8 py-6">المحل</th>
+                            <th className="px-8 py-6">المعلومات</th>
+                            <th className="px-8 py-6 text-center">الإحصائيات</th>
+                            <th className="px-8 py-6 text-center">الحالة التشغيلية</th>
+                            <th className="px-8 py-6 text-left">إجراءات التحكم</th>
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                         {stores.map(s => (
-                            <tr key={s.id} className="hover:bg-slate-50/50 transition-colors group">
+                            <tr key={s.id} className="hover:bg-slate-50/30 transition-colors group">
                                 <td className="px-8 py-6">
-                                    <div className="flex items-center gap-4">
-                                        <div className={`w-14 h-14 ${s.is_active ? 'bg-indigo-50 text-indigo-600' : 'bg-rose-50 text-rose-400'} rounded-xl flex items-center justify-center font-bold text-xl transition-transform group-hover:scale-105`}>
+                                    <div className="flex items-center gap-5">
+                                        <div className={`w-14 h-14 ${s.status === 'active' ? 'bg-indigo-50 text-indigo-600' : 'bg-amber-50 text-amber-600'} rounded-2xl flex items-center justify-center font-black text-xl transition-transform group-hover:scale-105 shadow-sm`}>
                                             {s.name[0]}
                                         </div>
                                         <div>
-                                            <h4 className="font-black text-slate-800 text-lg">{s.name}</h4>
+                                            <h4 className="font-black text-slate-800 text-lg leading-none mb-1">{s.name}</h4>
                                             <span className="text-[10px] bg-slate-100 text-slate-500 px-2.5 py-1 rounded-lg font-mono uppercase tracking-wider">#{s.slug}</span>
                                         </div>
                                     </div>
                                 </td>
                                 <td className="px-8 py-6">
-                                    <div className="space-y-1">
-                                        <div className="flex items-center gap-2 text-xs text-slate-500 font-medium">
+                                    <div className="space-y-1.5">
+                                        <div className="flex items-center gap-2 text-xs text-slate-500 font-bold">
                                             <MapPin size={14} className="text-slate-300" /> {s.address || 'لا يوجد عنوان'}
                                         </div>
-                                        <div className="flex items-center gap-2 text-xs text-slate-500 font-medium font-mono">
+                                        <div className="flex items-center gap-2 text-xs text-slate-500 font-bold font-mono">
                                             <Phone size={14} className="text-slate-300" /> {s.phone || '--'}
                                         </div>
                                     </div>
                                 </td>
                                 <td className="px-8 py-6 text-center">
-                                    <div className="flex items-center justify-center gap-6">
+                                    <div className="flex items-center justify-center gap-8">
                                         <div className="text-center">
-                                            <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest mb-0.5">موظفين</p>
-                                            <div className="flex items-center gap-1.5 justify-center font-bold text-slate-700">
-                                                <Users size={14} /> {s.users_count || 0}
+                                            <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest mb-1.5">موظفين</p>
+                                            <div className="flex items-center gap-1.5 justify-center font-black text-slate-700">
+                                                <Users size={14} className="text-indigo-400" /> {s.users_count || 0}
                                             </div>
                                         </div>
                                         <div className="text-center">
-                                            <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest mb-0.5">منتجات</p>
-                                            <div className="flex items-center gap-1.5 justify-center font-bold text-slate-700">
-                                                <Package size={14} /> {s.products_count || 0}
+                                            <p className="text-[10px] font-black text-slate-300 uppercase tracking-widest mb-1.5">منتجات</p>
+                                            <div className="flex items-center gap-1.5 justify-center font-black text-slate-700">
+                                                <Package size={14} className="text-blue-400" /> {s.products_count || 0}
                                             </div>
                                         </div>
                                     </div>
                                 </td>
                                 <td className="px-8 py-6 text-center">
-                                    <button 
-                                        onClick={() => toggleStatus(s.id, s.is_active)}
-                                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider transition-all
-                                            ${s.is_active ? 'bg-emerald-100 text-emerald-600 hover:bg-emerald-200' : 'bg-rose-100 text-rose-500 hover:bg-rose-200'}
-                                        `}
-                                    >
-                                        {s.is_active ? <CheckCircle size={12} /> : <XCircle size={12} />}
-                                        {s.is_active ? 'نشط' : 'معطل'}
-                                    </button>
+                                    <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest
+                                        ${s.status === 'active' ? 'bg-emerald-50 text-emerald-600 border border-emerald-100' : 'bg-rose-50 text-rose-600 border border-rose-100'}
+                                    `}>
+                                        <div className={`w-2 h-2 rounded-full ${s.status === 'active' ? 'bg-emerald-500' : 'bg-rose-500'} animate-pulse`} />
+                                        {s.status === 'active' ? 'نشط ومفعل' : 'موقف مؤقتاً'}
+                                    </div>
                                 </td>
                                 <td className="px-8 py-6 text-left">
-                                    <div className="flex items-center justify-end gap-2">
+                                    <div className="flex items-center justify-end gap-3">
                                         <button 
                                             onClick={() => handleSwitch(s.id, s.slug)}
-                                            title="التحقق من بيانات هذا المحل (يفتح في نافذة جديدة)"
-                                            className="p-3 bg-white border border-slate-200 text-slate-500 hover:text-indigo-600 hover:border-indigo-200 rounded-xl shadow-sm transition-all active:scale-90"
+                                            title="زيارة المتجر"
+                                            className="p-3 bg-white border border-slate-200 text-slate-400 hover:text-indigo-600 hover:border-indigo-200 rounded-xl shadow-sm transition-all active:scale-90"
                                         >
                                             <ExternalLink size={18} />
                                         </button>
                                         <button 
+                                            onClick={() => handleToggleStatus(s.id, s.name, s.status)}
+                                            title={s.status === 'active' ? 'تعليق المتجر' : 'تفعيل المتجر'}
+                                            className={`p-3 border rounded-xl shadow-sm transition-all active:scale-95
+                                                ${s.status === 'active' 
+                                                    ? 'bg-white border-slate-200 text-amber-500 hover:bg-amber-50 hover:border-amber-200' 
+                                                    : 'bg-emerald-50 border-emerald-200 text-emerald-600 hover:bg-emerald-100'}
+                                            `}
+                                        >
+                                            {s.status === 'active' ? <PauseCircle size={18} /> : <PlayCircle size={18} />}
+                                        </button>
+                                        <button 
                                             onClick={() => { setEditStore(s); setShowModal(true); }}
-                                            className="p-3 bg-white border border-slate-200 text-slate-500 hover:text-indigo-600 hover:border-indigo-200 rounded-xl shadow-sm transition-all active:scale-95"
+                                            className="p-3 bg-white border border-slate-200 text-slate-400 hover:text-blue-600 hover:border-blue-200 rounded-xl shadow-sm transition-all active:scale-95"
                                         >
                                             <Edit2 size={18} />
                                         </button>
                                         <button 
                                             onClick={() => handleDelete(s.id, s.name)}
-                                            className="p-3 bg-white border border-slate-200 text-slate-400 hover:text-rose-500 hover:border-rose-200 rounded-xl shadow-sm transition-all active:scale-95"
+                                            title="حذف نهائي"
+                                            className="p-3 bg-rose-50 border border-rose-100 text-rose-500 hover:bg-rose-100 hover:border-rose-200 rounded-xl shadow-sm transition-all active:scale-95"
                                         >
                                             <Trash2 size={18} />
                                         </button>

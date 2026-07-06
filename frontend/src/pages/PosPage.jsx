@@ -15,9 +15,9 @@ import { confirmDialog, toastSuccess, toastError, inputDialog, alertError } from
 import { 
     ShoppingCart, Search, Package, Plus, Minus,
     X, CheckCircle, Trash2, Tag, BarChart2, AlertTriangle,
-    Receipt, Zap, Save, Printer, User, Wallet, Loader2,
+    Receipt, Zap, Save, Printer, User, Wallet,
     Wifi, WifiOff, CloudOff, Camera, Barcode, Smartphone, Link, MonitorSmartphone,
-    Radio
+    Radio, DollarSign
 } from 'lucide-react';
 import { db, savePendingOrder, cacheProducts, getCachedProducts } from '../db';
 import { v4 as uuidv4 } from 'uuid';
@@ -40,10 +40,11 @@ const CustomerQuickSearch = ({ onSelect, selectedCustomer }) => {
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
 
+    const { slug } = useParams();
     const fetchCustomers = async (q) => {
         if (!q) return;
         try {
-            const res = await api.get('/customers');
+            const res = await api.get(`/${slug}/customers`);
             const filtered = res.data.filter(c =>
                 c.name.toLowerCase().includes(q.toLowerCase()) ||
                 (c.phone && c.phone.includes(q))
@@ -101,107 +102,220 @@ const CustomerQuickSearch = ({ onSelect, selectedCustomer }) => {
 const formatPrice = (n) => Number(n || 0).toLocaleString('ar-SY') + ' ل.س';
 const formatUsd = (n) => Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' $';
 
-/* ── Product Card ─────────────────────────────── */
-const ProductCard = ({ product, onAdd }) => {
-    const outOfStock = product.stock_quantity === 0;
-    const lowStock = product.stock_quantity > 0 && product.stock_quantity <= 5;
+/* ── Cart Content Component (Internal) ──────────────── */
+const CartContent = ({ 
+    cart, total, onUpdateQuantity, onRemove, onCheckout, itemCount, 
+    onClear, loading, customer, onCustomerSelect, heldOrders, 
+    showHeld, setShowHeld, onDeleteHeld, onResumeHeld, onOpenPending, 
+    pendingCount, onReprint, exchangeRate 
+}) => {
+    const totalUsd = cart.reduce((sum, i) => sum + (i.price_usd > 0 ? i.price_usd : (i.unit_price / (exchangeRate || 1))) * i.quantity, 0);
 
     return (
-        <div
-            onClick={() => !outOfStock && onAdd(product)}
-            className={`
-                group relative bg-white rounded-2xl border flex flex-col overflow-hidden transition-all duration-200
-                ${outOfStock
-                    ? 'opacity-55 cursor-not-allowed border-slate-200'
-                    : 'cursor-pointer border-slate-200 hover:border-blue-400 hover:shadow-lg hover:shadow-blue-50 active:scale-95'
-                }
-            `}
-        >
-            <div className="relative bg-gradient-to-br from-slate-50 to-blue-50 flex items-center justify-center h-28 overflow-hidden">
-                {product.image_path ? (
-                    <img src={`${api.defaults.baseURL.replace('/api', '')}/storage/${product.image_path}`} alt={product.name} className="w-full h-full object-cover group-hover:scale-110 transition-all duration-500" />
-                ) : (
-                    <Package size={46} className="text-blue-200 group-hover:text-blue-300 group-hover:scale-110 transition-all duration-300" />
-                )}
-                {outOfStock && (
-                    <div className="absolute inset-0 bg-white/80 backdrop-blur-sm flex items-center justify-center">
-                        <span className="text-xs font-bold text-red-500 bg-red-50 border border-red-200 px-3 py-1.5 rounded-full shadow-sm">نفدت الكمية</span>
-                    </div>
-                )}
-                {lowStock && !outOfStock && (
-                    <span className="absolute top-2 right-2 flex items-center gap-1 bg-amber-100 text-amber-700 text-[10px] font-bold px-2 py-0.5 rounded-full border border-amber-200 shadow-sm z-10">
-                        <AlertTriangle size={10} /> يوشك النفاد
-                    </span>
-                )}
-                {!outOfStock && (
-                    <button className="absolute bottom-2 left-2 w-8 h-8 bg-blue-600 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all shadow-md active:scale-90 z-10">
-                        <Plus size={16} />
-                    </button>
-                )}
-            </div>
-
-            <div className="p-3 flex flex-col gap-1.5 flex-1 relative z-10">
-                <div className="flex justify-between items-start">
-                    <h3 className="font-bold text-slate-800 text-sm leading-tight truncate pl-2">{product.name}</h3>
+        <div className="flex flex-col h-full bg-white">
+            <div className="px-5 py-4 border-b border-slate-100 flex justify-between items-center bg-white shrink-0">
+                <div className="flex items-center gap-2">
+                    <ShoppingCart size={20} className="text-blue-600" />
+                    <h2 className="font-extrabold text-slate-800 text-base">سلة المبيعات</h2>
                 </div>
-                {product.is_batch && (
-                    <div className="flex items-center gap-1 text-[9px] font-bold text-slate-500 bg-slate-100 border border-slate-200 w-fit px-1.5 py-0.5 rounded uppercase">
-                        وجبة: {product.batch_date}
-                    </div>
-                )}
-                <div className="flex justify-between items-end mt-auto pt-1">
-                    <div className="flex flex-col">
-                        <span className="text-blue-600 font-extrabold text-base leading-none">
-                            {formatPrice(product.price || 0)}
-                        </span>
-                        {(product.price_usd > 0) && (
-                            <span className="text-[10px] text-emerald-600 mt-1 font-bold">
-                                ({formatUsd(product.price_usd)})
-                            </span>
+                <div className="flex items-center gap-1">
+                    <button onClick={onReprint} className="p-2 text-slate-400 hover:text-blue-600 rounded-xl transition-all"><Printer size={18} /></button>
+                    <div className="relative">
+                        <button onClick={() => setShowHeld(prev => !prev)} className="p-2 text-slate-400 hover:text-amber-600 rounded-xl transition-all relative">
+                            <Save size={18} />
+                            {heldOrders.length > 0 && <span className="absolute -top-1 -right-1 w-4 h-4 bg-rose-500 text-white text-[9px] font-bold flex items-center justify-center rounded-full border-2 border-white animate-pulse">{heldOrders.length}</span>}
+                        </button>
+                        {showHeld && (
+                            <div className="absolute top-full left-0 mt-2 w-72 bg-white border border-slate-200 rounded-2xl shadow-2xl z-50 p-2 animate-in slide-in-from-top-2">
+                                <h3 className="text-[10px] font-black text-slate-400 px-3 py-2 border-b border-slate-50 mb-2 uppercase">الفواتير المعلقة</h3>
+                                <div className="max-h-64 overflow-y-auto space-y-1">
+                                    {heldOrders.length === 0 ? <p className="text-[11px] text-slate-400 text-center py-4">لا توجد معلقات</p> : heldOrders.map(o => (
+                                        <div key={o.id} className="group flex items-center justify-between p-2 hover:bg-slate-50 rounded-xl cursor-pointer">
+                                            <div className="flex-1 min-w-0" onClick={() => onResumeHeld(o)}>
+                                                <p className="text-xs font-bold text-slate-800 truncate">{o.customer?.name || 'زبون نقدي'}</p>
+                                                <p className="text-[9px] text-slate-400">{o.time} • {o.cart.length} أصناف • {(o.total || 0).toLocaleString('ar-SY')}</p>
+                                            </div>
+                                            <button onClick={() => onDeleteHeld(o.id)} className="p-1 text-slate-300 hover:text-rose-500 opacity-0 group-hover:opacity-100"><X size={14} /></button>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
                         )}
                     </div>
-                    <span className={`text-[10px] font-semibold ${lowStock ? 'text-amber-500' : 'text-slate-400'}`}>الكمية: {product.stock_quantity}</span>
+                    {cart.length > 0 && <button onClick={onClear} className="p-2 text-slate-300 hover:text-rose-500"><Trash2 size={18} /></button>}
+                    <span className="bg-blue-100 text-blue-700 text-[10px] font-black px-2.5 py-1 rounded-full min-w-[32px] text-center">{itemCount}</span>
                 </div>
-                {product.barcode && !product.is_batch && (
-                    <div className="flex items-center gap-1 text-[10px] text-slate-400 mt-1">
-                        <BarChart2 size={9} /><span>{product.barcode}</span>
+            </div>
+
+            <div className="px-4 py-3 bg-slate-50 border-b border-slate-100 flex gap-2 shrink-0">
+                <div className="flex-1"><CustomerQuickSearch onSelect={onCustomerSelect} selectedCustomer={customer} /></div>
+                <div className="relative">
+                    <button onClick={onOpenPending} className={`p-2.5 rounded-xl transition-all relative ${pendingCount > 0 ? 'bg-rose-50 border border-rose-100 text-rose-600 animate-pulse' : 'bg-white border border-slate-200 text-slate-400'}`}>
+                        <Radio size={20} />
+                        {pendingCount > 0 && <span className="absolute -top-1 -right-1 w-5 h-5 bg-rose-600 text-white text-[10px] font-black flex items-center justify-center rounded-full border-2 border-white">{pendingCount}</span>}
+                    </button>
+                </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4 space-y-2 bg-white">
+                {cart.length === 0 ? (
+                    <div className="h-full flex flex-col items-center justify-center text-slate-300 py-10">
+                        <ShoppingCart size={48} className="mb-4 opacity-20" />
+                        <p className="text-xs font-bold text-slate-400">السلة فارغة حالياً</p>
                     </div>
-                )}
+                ) : cart.map((item, idx) => (
+                    <CartItem key={`${item.id}-${item.batch_id}-${idx}`} item={item} onUpdate={(delta) => onUpdateQuantity(idx, delta)} onRemove={() => onRemove(idx)} exchangeRate={exchangeRate} />
+                ))}
+            </div>
+
+            <div className="shrink-0 border-t border-slate-100 p-5 bg-slate-50 space-y-3">
+                <div className="flex justify-between items-end">
+                    <span className="font-extrabold text-slate-400 text-xs uppercase tracking-widest">المجموع النهائي</span>
+                    <div className="text-left">
+                        <span className="block font-black text-blue-700 text-2xl leading-none">{(total || 0).toLocaleString('ar-SY')} <small className="text-xs">ل.س</small></span>
+                        <span className="block font-bold text-emerald-600 text-[11px] mt-1 tracking-tight">({totalUsd.toLocaleString('en-US', { style: 'currency', currency: 'USD' })})</span>
+                    </div>
+                </div>
+                <button
+                    onClick={onCheckout}
+                    disabled={cart.length === 0 || loading}
+                    className="w-full flex items-center justify-center gap-3 py-4 rounded-2xl font-black text-sm md:text-base bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-xl shadow-blue-200 active:scale-95 transition-all"
+                >
+                    {loading ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <><Receipt size={20} /><span>إتمام عملية البيع</span></>}
+                </button>
             </div>
         </div>
     );
 };
 
+/* ── Product Card ─────────────────────────────── */
+const ProductCard = ({ product, onAdd, exchangeRate }) => {
+    const outOfStock = product.stock_quantity === 0;
+    const lowStock = product.stock_quantity > 0 && product.stock_quantity <= 5;
+    const calculatedPrice = product.price_usd > 0 ? (product.price_usd * exchangeRate) : product.price;
+
+    return (
+        <div
+            onClick={() => !outOfStock && onAdd(product)}
+            className={`
+                group relative bg-white rounded-[1.5rem] border-2 flex flex-col overflow-hidden transition-all duration-300 min-h-[14rem] md:min-h-[16rem]
+                ${outOfStock
+                    ? 'border-slate-200 opacity-60 grayscale-[0.5]'
+                    : 'cursor-pointer border-slate-100 hover:border-blue-500 hover:shadow-xl hover:shadow-blue-100/30 active:scale-[0.98]'
+                }
+            `}
+        >
+            {/* Image Section */}
+            <div className="relative bg-gradient-to-br from-slate-50 to-blue-50/30 flex items-center justify-center h-32 md:h-36 shrink-0 overflow-hidden border-b border-slate-50">
+                {product.image_path ? (
+                    <img src={`${api.defaults.baseURL.replace('/api', '')}/storage/${product.image_path}`} alt={product.name} className="w-full h-full object-cover group-hover:scale-110 transition-all duration-700" />
+                ) : (
+                    <Package size={32} className="text-blue-100 group-hover:text-blue-300 group-hover:scale-110 transition-all duration-500" />
+                )}
+                
+                {/* Batch Tag (Corner - Horizontal) */}
+                {product.is_batch && (
+                    <div className="absolute top-2 left-2 z-10">
+                        <span className="inline-block bg-slate-800/90 backdrop-blur-md text-white text-[9px] md:text-[10px] font-bold px-2 py-1 rounded-md whitespace-nowrap shadow-md">
+                            وجبة: {product.batch_date}
+                        </span>
+                    </div>
+                )}
+                
+                {outOfStock && (
+                    <div className="absolute inset-0 bg-white/60 backdrop-blur-[1px] flex items-center justify-center">
+                        <span className="text-[10px] font-black text-white bg-slate-900 px-3 py-1.5 rounded-lg shadow-xl uppercase">نفدت</span>
+                    </div>
+                )}
+            </div>
+
+            {/* Info Section */}
+            <div className="p-3.5 flex flex-col gap-2 flex-1 relative z-10">
+                {/* Name */}
+                <h3 className="font-black text-slate-800 text-[13px] md:text-sm leading-tight line-clamp-2 min-h-[2.2rem]">{product.name}</h3>
+                
+                <div className="flex-1 flex flex-col justify-end gap-2 mt-auto">
+                    {/* Prices Container */}
+                    <div className="space-y-1">
+                        {/* SYP Price */}
+                        <div className="flex items-baseline justify-between gap-1.5">
+                            <span className="text-blue-700 font-black text-lg tracking-tight">
+                                {Number(calculatedPrice || 0).toLocaleString('ar-SY')}
+                            </span>
+                            <span className="text-[9px] font-black text-slate-400 uppercase">ل.س</span>
+                        </div>
+
+                        {/* USD Planned Price (Premium Badge) - Always Visible */}
+                        <div className="flex items-center gap-1 bg-emerald-50 text-emerald-700 px-2 py-1 rounded-lg border border-emerald-100/50 w-fit">
+                            <DollarSign size={10} className="text-emerald-500" />
+                            <span className="text-[10px] font-black tracking-tight leading-none">
+                                {Number(product.price_usd || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </span>
+                            <span className="text-[8px] font-bold opacity-60">مخطط</span>
+                        </div>
+                    </div>
+
+                    {/* Stock & Barcode Row */}
+                    <div className="flex flex-row items-center justify-between pt-2 border-t border-slate-50 w-full">
+                        <div className="flex items-center gap-1.5">
+                            <div className={`w-1.5 h-1.5 rounded-full ${lowStock ? 'bg-amber-500 animate-pulse' : 'bg-emerald-500'}`} />
+                            <span className={`text-[10px] font-extrabold ${lowStock ? 'text-amber-600' : 'text-slate-500'}`}>
+                                المخزون: {product.stock_quantity}
+                            </span>
+                        </div>
+                        <span className="text-[9px] text-slate-300 font-mono bg-slate-50 px-1 py-0.5 rounded-md">
+                            {product.barcode?.slice(-4) || '---'}
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            {/* Quick Add Overlay - Mobile Optimized */}
+            {!outOfStock && (
+                <div className="absolute inset-0 bg-blue-600/0 lg:group-hover:bg-blue-600/5 transition-all pointer-events-none flex items-center justify-center">
+                     <div className="w-12 h-12 md:w-10 md:h-10 bg-blue-600 text-white rounded-2xl flex items-center justify-center opacity-0 lg:group-hover:opacity-100 translate-y-4 lg:group-hover:translate-y-0 transition-all duration-300 shadow-xl shadow-blue-500/30 lg:pointer-events-auto">
+                        <Plus size={24} className="md:size-5" />
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
 /* ── Cart Item ─────────────────────────────────── */
-const CartItem = ({ item, onUpdate, onRemove }) => (
-    <div className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100 hover:border-slate-200 transition-colors group">
-        <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center shrink-0">
-            <Package size={20} className="text-blue-400" />
+const CartItem = ({ item, onUpdate, onRemove, exchangeRate }) => {
+    const calculatedPrice = item.price_usd > 0 ? (item.price_usd * exchangeRate) : item.unit_price;
+    return (
+        <div className="flex items-center gap-3 p-3 rounded-xl bg-slate-50 border border-slate-100 hover:border-slate-200 transition-colors group">
+            <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center shrink-0">
+                <Package size={20} className="text-blue-400" />
+            </div>
+            <div className="flex-1 min-w-0">
+                <p className="font-bold text-slate-800 text-sm truncate leading-tight">{item.name}</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">{formatPrice(calculatedPrice)} / وحدة</p>
+            </div>
+            <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-xl p-1 shadow-sm">
+                <button onClick={() => onUpdate(-1)} className="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-500 transition-colors"><Minus size={12} /></button>
+                <span className="text-sm font-bold text-slate-800 w-6 text-center select-none">{item.quantity}</span>
+                <button onClick={() => onUpdate(1)} className="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-500 transition-colors"><Plus size={12} /></button>
+            </div>
+            <div className="text-left min-w-[80px]">
+                <span className="block text-sm font-extrabold text-slate-800">{formatPrice(calculatedPrice * item.quantity)}</span>
+                {(item.price_usd > 0) && <span className="block text-[10px] text-emerald-600 font-bold">({formatUsd(item.price_usd * item.quantity)})</span>}
+            </div>
+            <button onClick={() => onRemove()} className="p-1.5 rounded-lg text-slate-300 hover:text-rose-500 hover:bg-rose-50 transition-colors opacity-0 group-hover:opacity-100">
+                <X size={15} />
+            </button>
         </div>
-        <div className="flex-1 min-w-0">
-            <p className="font-bold text-slate-800 text-sm truncate leading-tight">{item.name}</p>
-            <p className="text-[11px] text-slate-400 mt-0.5">{formatPrice(item.unit_price)} / وحدة</p>
-        </div>
-        <div className="flex items-center gap-1 bg-white border border-slate-200 rounded-xl p-1 shadow-sm">
-            <button onClick={() => onUpdate(item.id, -1)} className="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-500 transition-colors"><Minus size={12} /></button>
-            <span className="text-sm font-bold text-slate-800 w-6 text-center select-none">{item.quantity}</span>
-            <button onClick={() => onUpdate(item.id, 1)} className="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-slate-100 text-slate-500 transition-colors"><Plus size={12} /></button>
-        </div>
-        <div className="text-left min-w-[80px]">
-            <span className="block text-sm font-extrabold text-slate-800">{formatPrice(item.unit_price * item.quantity)}</span>
-            {(item.price_usd > 0) && <span className="block text-[10px] text-emerald-600 font-bold">({formatUsd(item.price_usd * item.quantity)})</span>}
-        </div>
-        <button onClick={() => onRemove(item.id)} className="p-1.5 rounded-lg text-slate-300 hover:text-rose-500 hover:bg-rose-50 transition-colors opacity-0 group-hover:opacity-100">
-            <X size={15} />
-        </button>
-    </div>
-);
+    );
+};
 
 /* ── Main POS Page ─────────────────────────────── */
 const PosPage = () => {
     const { slug } = useParams();
     const { user, isAuthenticated, isLoading: authLoading } = useAuth();
     const [products, setProducts] = useState([]);
+    const [exchangeRate, setExchangeRate] = useState(0);
     const [cart, setCart] = useState([]);
     const [loading, setLoading] = useState(false);
     const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
@@ -228,28 +342,49 @@ const PosPage = () => {
     const [isPendingOrdersModalOpen, setIsPendingOrdersModalOpen] = useState(false);
     const [activePendingOrderId, setActivePendingOrderId] = useState(null);
 
+    const [isCartDrawerOpen, setIsCartDrawerOpen] = useState(false);
+
+    if (authLoading) return null;
+
     // --- Utilities & Handlers (Moved up to fix ReferenceError) ---
 
-    const flattenProducts = (list) => {
+    const flattenProducts = useCallback((list, rate) => {
         return (list || []).flatMap(p => {
             if (!p.batches || p.batches.length === 0) {
-                return [{ ...p, batch_id: null, is_batch: false }];
+                return [{ 
+                    ...p, 
+                    batch_id: null, 
+                    is_batch: false,
+                    price: parseFloat(p.price || p.price_syr || 0),
+                    price_usd: parseFloat(p.sale_price_usd || p.planned_price_usd || p.price_usd || 0),
+                    original_price: p.price 
+                }];
             }
-            return p.batches.map(b => ({
-                ...p,
-                is_batch: true,
-                batch_id: b.id,
-                stock_quantity: b.remaining_qty,
-                price: parseFloat(b.sale_price) > 0 ? parseFloat(b.sale_price) : parseFloat(p.price || 0),
-                price_usd: parseFloat(b.cost_usd || 0),
-                batch_date: new Date(b.created_at).toLocaleDateString('ar-SY', { month: 'short', day: 'numeric', year: 'numeric' }),
-                batch_exchange_rate: b.exchange_rate,
-                batch_info: b
-            }));
+            return p.batches.map(b => {
+                return {
+                    ...p,
+                    is_batch: true,
+                    batch_id: b.id,
+                    stock_quantity: b.remaining_qty,
+                    price: parseFloat(b.sale_price || 0),
+                    price_usd: parseFloat(b.sale_price_usd || b.planned_price_usd || p.sale_price_usd || p.planned_price_usd || 0),
+                    batch_date: new Date(b.created_at).toLocaleDateString('ar-SY', { month: 'short', day: 'numeric', year: 'numeric' }),
+                    batch_exchange_rate: b.exchange_rate,
+                    batch_info: b
+                };
+            });
         });
-    };
+    }, []);
 
-    const flattenedInventory = React.useMemo(() => flattenProducts(products), [products]);
+    const flattenedInventory = React.useMemo(() => flattenProducts(products, exchangeRate), [products, exchangeRate, flattenProducts]);
+
+    const filteredItems = React.useMemo(() => {
+        const q = gridSearch?.toLowerCase() || '';
+        return flattenedInventory.filter(item => 
+            item.name?.toLowerCase().includes(q) || 
+            (item.barcode && item.barcode.includes(gridSearch))
+        );
+    }, [flattenedInventory, gridSearch]);
 
     const addToCart = (product) => {
         const batchId = product.is_batch ? product.batch_id : null;
@@ -324,8 +459,33 @@ const PosPage = () => {
             }, 3000);
             return;
         }
+
+        // Fetch Initial Exchange Rate
+        const loadExchangeRate = async () => {
+            try {
+                const settings = await db.app_cache.get('app_settings');
+                if (settings?.value?.exchange_rate) {
+                    setExchangeRate(parseFloat(settings.value.exchange_rate));
+                }
+            } catch (err) { console.error('Failed to load rate from cache', err); }
+        };
+        loadExchangeRate();
+
+        // Listen for live updates
+        const handleRateChange = (e) => {
+            if (e.detail) {
+                console.log('[POS] Global Exchange Rate Updated:', e.detail);
+                setExchangeRate(parseFloat(e.detail));
+            }
+        };
+        window.addEventListener('exchangeRateUpdated', handleRateChange);
+
         SyncService.startAutoSync();
         fetchProducts();
+
+        return () => {
+            window.removeEventListener('exchangeRateUpdated', handleRateChange);
+        };
     }, [user, isAuthenticated, authLoading]);
 
     // Remote Scanner Session Hook
@@ -343,12 +503,12 @@ const PosPage = () => {
     const subscriptionKey = `${currentStoreId}-${remoteSessionId}`;
     
     useEffect(() => {
-        console.log('[Remote Scanner] Effect Triggered. Checking dependencies...');
-        
         if (!remoteSessionId || !currentStoreId) {
-            console.log('[Remote Scanner] Subscription blocked: Missing IDs', { remoteSessionId, currentStoreId });
+            // Silently wait until both IDs are available before subscribing
             return;
         }
+
+        console.log('[Remote Scanner] Effect Triggered. Dependencies ready.');
 
         const channelName = `scanner.${currentStoreId}.${remoteSessionId}`;
         console.log(`[Remote Scanner] Attempting Subscription to: ${channelName}`);
@@ -385,7 +545,7 @@ const PosPage = () => {
 
         const fetchPendingOrders = async () => {
             try {
-                const res = await api.get('/pending-orders');
+                const res = await api.get(`/${slug}/pending-orders`);
                 setPendingOrders(res.data);
             } catch (err) { console.error('Failed to fetch pending orders', err); }
         };
@@ -402,6 +562,27 @@ const PosPage = () => {
 
         return () => {
             echo.leave(`store.${currentStoreId}`);
+        };
+    }, [currentStoreId, echo]);
+
+    // B2B Live Notifications (Proposals & Status Updates)
+    useEffect(() => {
+        if (!currentStoreId) return;
+
+        const channel = echo.private(`stores.${currentStoreId}`);
+        
+        channel.notification((notification) => {
+            console.log('[Live Notification] POS received:', notification);
+            
+            // Show Toast based on notification type
+            if (notification.type === 'b2b_proposal') {
+                SoundService.playNotification();
+                toastSuccess(`💡 اقتراح جديد: قام المورد باقتراح منتج جديد [${notification.supplier_name || 'مورد'}]`);
+            }
+        });
+
+        return () => {
+            echo.leave(`stores.${currentStoreId}`);
         };
     }, [currentStoreId, echo]);
 
@@ -461,7 +642,7 @@ const PosPage = () => {
 
             // 2. Fetch Updates from API if Online
             if (navigator.onLine) {
-                const res = await api.get('/inventory');
+                const res = await api.get(`/${slug}/inventory`);
                 const data = Array.isArray(res.data) ? res.data : [];
                 setProducts(data);
                 await cacheProducts(data);
@@ -481,6 +662,10 @@ const PosPage = () => {
 
 
     const removeFromCart = (uniqueId) => setCart(prev => prev.filter((_, idx) => idx !== uniqueId));
+    const handleClearCart = () => {
+        setCart([]);
+        setActivePendingOrderId(null);
+    };
 
     const updateQuantity = (uniqueId, delta) => {
         setCart(prev => {
@@ -502,7 +687,11 @@ const PosPage = () => {
         });
     };
 
-    const total = cart.reduce((sum, i) => sum + i.unit_price * i.quantity, 0);
+    const total = cart.reduce((sum, i) => {
+        const currentPrice = i.price_usd > 0 ? (i.price_usd * exchangeRate) : i.unit_price;
+        return sum + currentPrice * i.quantity;
+    }, 0);
+    const totalUsd = cart.reduce((sum, i) => sum + (i.price_usd > 0 ? i.price_usd : (i.unit_price / (exchangeRate || 1))) * i.quantity, 0);
     const itemCount = cart.reduce((sum, i) => sum + i.quantity, 0);
 
     const handleCheckout = () => {
@@ -569,49 +758,35 @@ const PosPage = () => {
     };
 
     const handleAcceptPendingOrder = async (order) => {
-        let finalItems = [];
-        const incomingItems = (order.items || []).map(item => {
-            // Find the original product from flattenedInventory to get all metadata
-            const originalProduct = flattenedInventory.find(p => p.id === item.id);
-            if (!originalProduct) return null;
-            return {
-                ...originalProduct,
-                quantity: item.quantity,
-                unit_price: Number(item.price)
-            };
-        }).filter(Boolean);
-
-        if (cart.length > 0) {
-            const result = await confirmDialog(
-                'دمج أم استبدال؟',
-                'سلة الكاشير تحتوي على أصناف حالياً. هل تريد الدمج أم الاستبدال؟',
-                'question',
-                'دمج الأصناف',
-                'استبدال بالكامل'
-            );
-
-            if (result.isConfirmed) {
-                // Merge Logic (Simple version: append)
-                setCart(prev => [...prev, ...incomingItems]);
-            } else if (result.dismiss === 'cancel') {
-                // Replace Logic
-                setCart(incomingItems);
-            } else {
-                return; // User closed modal
-            }
-        } else {
-            setCart(incomingItems);
+        try {
+            setLoading(true);
+            const res = await api.patch(`/${slug}/pending-orders/${order.id}/status`, { status: 'accepted' });
+            
+            // 1. Show Success Message with Invoice Number
+            toastSuccess(res.data.message || `تم قبول طلب "${order.customer_name_or_table}" وإصدار فاتورة رقم #${res.data.invoice_number}`);
+            
+            // 2. Remove from pending list
+            setPendingOrders(prev => prev.filter(o => o.id !== order.id));
+            
+            // 3. Update Local Inventory (Real-time update)
+            await fetchProducts();
+            
+            // 4. Close Modal
+            setIsPendingOrdersModalOpen(false);
+            
+            // 5. Sound Feedback
+            SoundService.playSuccess();
+        } catch (err) {
+            console.error(err);
+            toastError(err.response?.data?.message || 'فشل قبول الطلب وتوليد الفاتورة');
+        } finally {
+            setLoading(false);
         }
-
-        setSelectedCustomer({ name: order.customer_name_or_table });
-        setActivePendingOrderId(order.id);
-        setIsPendingOrdersModalOpen(false);
-        toastSuccess(`تم شحن طلب "${order.customer_name_or_table}" إلى السلة ✅`);
     };
 
     const handleRejectPendingOrder = async (id) => {
         try {
-            await api.patch(`/pending-orders/${id}/status`, { status: 'rejected' });
+            await api.patch(`/${slug}/pending-orders/${id}/status`, { status: 'rejected' });
             setPendingOrders(prev => prev.filter(o => o.id !== id));
             toastSuccess('تم رفض الطلب');
         } catch (err) {
@@ -622,8 +797,9 @@ const PosPage = () => {
     const handleReprintLast = async () => {
         setLoading(true);
         try {
+            const res = await api.get(`/${slug}/last-order`);
             const order = res.data.order;
-            generateInvoice(order, order.items.map(i => ({
+            await generateInvoice(order, order.items.map(i => ({
                 ...i.product,
                 quantity: i.quantity,
                 price: i.unit_price
@@ -644,7 +820,7 @@ const PosPage = () => {
                 quantity: i.quantity,
                 batch_id: i.batch_uuid || i.batch_id,
                 name: i.name,
-                unit_price: i.unit_price
+                unit_price: i.price_usd > 0 ? (i.price_usd * exchangeRate) : i.unit_price
             })),
             payment_method: paymentMethod,
             customer_id: customerId, // Frontend should pass numeric or UUID
@@ -652,6 +828,7 @@ const PosPage = () => {
             received_amount: receivedAmount,
             change_amount: changeAmount,
             store_id: Number(user?.store_id || user?.store?.id),
+            exchange_rate: exchangeRate,
             created_at: new Date().toISOString()
         };
 
@@ -659,7 +836,7 @@ const PosPage = () => {
         try {
             // 0. Update Pending Order Status if linked
             if (activePendingOrderId) {
-                await api.patch(`/pending-orders/${activePendingOrderId}/status`, { status: 'accepted' });
+                await api.patch(`/${slug}/pending-orders/${activePendingOrderId}/status`, { status: 'accepted' });
                 setPendingOrders(prev => prev.filter(o => o.id !== activePendingOrderId));
                 setActivePendingOrderId(null);
             }
@@ -670,7 +847,7 @@ const PosPage = () => {
             // 2. Optimistic success feedback
             if (printInvoice) {
                 // For printing, we use the local cart data
-                generateInvoice({ ...orderData, invoice_number: 'PENDING' }, cart, user?.store);
+                await generateInvoice({ ...orderData, invoice_number: 'PENDING' }, cart, user?.store);
             }
 
             toastSuccess(paymentMethod === 'credit' ? 'تم حفظ الفاتورة محلياً وتحويلها للمزامنة! 📝' : 'تمت عملية البيع محلياً! 🎉');
@@ -690,58 +867,38 @@ const PosPage = () => {
         }
     };
 
-    // Feature 1: Filter products for grid display (with safety checks)
-
-
-    const filteredItems = flattenedInventory.filter(item => {
-        if (!item) return false;
-        if (!gridSearch.trim()) return true;
-        const q = gridSearch.toLowerCase();
-        return item.name?.toLowerCase().includes(q) || (item.barcode && item.barcode.includes(gridSearch));
-    });
 
     return (
         <div className="flex flex-col h-full bg-slate-100" dir="rtl">
 
-            {/* Header - Hidden on Mobile/Tablet (<1024px) */}
-            <header className="shrink-0 bg-white border-b border-slate-200 shadow-sm z-10 px-6 py-3 hidden lg:flex items-center gap-4">
+            {/* Header: Compact and Responsive */}
+            <header className="shrink-0 bg-white border-b border-slate-200 px-4 py-2 md:px-8 md:py-4 flex items-center justify-between gap-4 z-40">
                 <div className="flex items-center gap-3">
-                    <div className="w-11 h-11 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-200 shrink-0">
-                        <Zap size={22} className="text-white" />
+                    <div className="w-10 h-10 md:w-12 md:h-12 bg-blue-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-blue-100 shrink-0">
+                        <ShoppingCart size={22} />
                     </div>
-                    <div className="flex flex-col">
-                        <h1 className="text-base font-black text-slate-800 leading-tight">نقطة البيع</h1>
-                        <p className="text-[11px] font-bold text-slate-400">مرحباً، {user?.name}</p>
+                    <div className="hidden sm:block">
+                        <h1 className="text-sm md:text-xl font-black text-slate-800 tracking-tight leading-tight">نقطة البيع</h1>
+                        <p className="text-[9px] md:text-[10px] font-bold text-slate-400 uppercase tracking-widest">{slug || 'المتجر'}</p>
                     </div>
                 </div>
 
-                <div className="flex-1 max-w-3xl mx-auto flex items-center gap-3">
-                    {/* زر إضافة منتج سريع - يظهر أولاً قبل البحث */}
-                    <button
-                        onClick={() => window.location.href = '/inventory/products/create'}
-                        className="w-11 h-11 bg-blue-600 text-white rounded-xl shadow-lg shadow-blue-200 hover:bg-blue-700 hover:scale-105 active:scale-95 transition-all flex items-center justify-center shrink-0"
-                        title="إضافة منتج جديد"
-                    >
-                        <Plus size={22} />
-                    </button>
-
-                    {/* حقل البحث المدمج */}
-                    <div className="flex-1 relative group">
-                        {/* أيقونات الباركود والكاميرا في بداية الحقل (اليمين في RTL) */}
-                        <div className="absolute inset-y-0 right-3 flex items-center gap-2">
-                            <Barcode size={18} className="text-slate-300" />
+                <div className="flex-1 max-w-2xl">
+                    <div className="relative group">
+                        {/* Camera Button (Mobile First) */}
+                        <div className="absolute right-2 inset-y-0 flex items-center gap-1">
                             <button
                                 onClick={() => setShowScanner(true)}
-                                className="text-slate-400 hover:text-blue-600 transition-colors"
+                                className="text-slate-400 hover:text-blue-600 transition-colors p-2.5 rounded-xl hover:bg-slate-100"
                                 title="فتح الكاميرا للمسح"
                             >
-                                <Camera size={18} />
+                                <Camera size={22} className="md:size-5" />
                             </button>
                         </div>
 
                         <input
                             type="text"
-                            placeholder="ابحث بالاسم أو امسح الباركود..."
+                            placeholder="بحث أو باركود..."
                             value={gridSearch}
                             onChange={(e) => setGridSearch(e.target.value)}
                             onKeyDown={(e) => {
@@ -749,370 +906,170 @@ const PosPage = () => {
                                     handleBarcodeScan(gridSearch);
                                 }
                             }}
-                            className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-2.5 pr-20 pl-12 text-sm focus:ring-4 focus:ring-blue-100 focus:bg-white focus:border-blue-400 outline-none transition-all shadow-sm font-bold placeholder:text-slate-400"
+                            className="w-full bg-slate-50 border border-slate-200 rounded-2xl py-3 md:py-2.5 pr-12 md:pr-14 pl-10 text-xs md:text-sm focus:ring-4 focus:ring-blue-100 focus:bg-white focus:border-blue-400 outline-none transition-all shadow-sm font-bold placeholder:text-slate-400"
                         />
                         
-                        {/* أيقونة البحث في نهاية الحقل (اليسار في RTL) */}
-                        <span className="absolute inset-y-0 left-3 flex items-center text-slate-400 group-focus-within:text-blue-500 transition-colors">
-                            <Search size={19} />
+                        <span className="absolute inset-y-0 left-3 flex items-center text-slate-400">
+                            <Search size={18} />
                         </span>
                     </div>
                 </div>
 
-                <div className="flex items-center gap-3">
-                    {/* Sync Indicator */}
+                <div className="flex items-center gap-2 md:gap-3">
                     <SyncIndicator />
-
-                    {/* كتلة الأيقونات مدمجة: الإشعارات أولاً ثم الجوال لعدم عكس الترتيب البصري */}
-                    <div className="flex items-center bg-white border border-slate-200 rounded-2xl p-1 gap-1 shadow-sm">
+                    
+                    <div className="flex items-center bg-white border border-slate-200 rounded-2xl p-1 gap-1 shadow-sm shrink-0">
                         <NotificationCenter />
-                        {window.innerWidth >= 1024 && (
-                            <>
-                                <div className="w-[1px] h-6 bg-slate-100 mx-1" />
-                                <button
-                                    onClick={() => {
-                                        if (!remoteSessionId) setRemoteSessionId(Math.random().toString(36).substring(2, 12));
-                                        setIsRemoteModalOpen(true);
-                                    }}
-                                    className="p-2.5 text-slate-400 hover:text-blue-600 transition-all active:scale-95"
-                                    title="ربط الجوال"
-                                >
-                                    <Smartphone size={20} />
-                                </button>
-                            </>
-                        )}
-                    </div>
-
-                    <div className="hidden lg:flex items-center gap-2 text-xs text-slate-400 bg-white border border-slate-200 px-4 py-2.5 rounded-2xl shrink-0 font-bold shadow-sm">
-                        <Tag size={14} className="text-blue-400" /> <span>نظام المسح السريع</span>
+                        <button
+                            onClick={() => {
+                                if (!remoteSessionId) setRemoteSessionId(uuidv4());
+                                setIsRemoteModalOpen(true);
+                            }}
+                            className="p-2 text-slate-400 hover:text-blue-600 transition-all"
+                            title="ربط الجوال"
+                        >
+                            <Smartphone size={20} />
+                        </button>
                     </div>
                 </div>
             </header>
 
-            {/* Main Content Area */}
-            <div className="flex-1 flex flex-col overflow-hidden">
+            {/* Main Content: Unified Grid + Sidebar/Drawer */}
+            <main className="flex-1 flex overflow-hidden relative" dir="rtl">
                 
-                {/* --- Mobile/Tablet View (Vertical - Standalone) --- */}
-                <div className="flex lg:hidden flex-col h-full overflow-hidden">
-                    {/* Upper Section: Barcode Scanner (Inline) */}
-                    <div className="shrink-0">
-                        <BarcodeScanner 
-                            isInline={true}
-                            onScan={handleBarcodeScan}
-                            onClose={() => {}} // No close in inline mode
-                        />
-                    </div>
-
-                    {/* Lower Section: Cart Items */}
-                    <div className="flex-1 overflow-y-auto bg-white p-4 space-y-3 pb-24">
-                        <div className="flex items-center justify-between mb-4">
-                            <h2 className="font-extrabold text-slate-800 text-lg flex items-center gap-2">
-                                <ShoppingCart size={20} className="text-blue-600" />
-                                سلة المشتريات
-                            </h2>
-                            <span className="bg-blue-100 text-blue-700 text-xs font-bold px-3 py-1 rounded-full">
-                                {itemCount} صنف
-                            </span>
-                        </div>
-                        
-                        {cart.length === 0 ? (
-                            <div className="h-64 flex flex-col items-center justify-center text-slate-300">
-                                <Barcode size={48} className="mb-4 opacity-20" />
-                                <p className="text-sm font-bold">ابدأ بمسح الباركود الآن</p>
-                            </div>
-                        ) : (
-                            cart.map((item, idx) => (
-                                <CartItem
-                                    key={`${item.id}-${item.batch_id}-${idx}`}
-                                    item={item}
-                                    onUpdate={() => updateQuantity(idx, 1)}
-                                    onRemove={() => removeFromCart(idx)}
-                                />
-                            ))
-                        )}
-                    </div>
-
-                    {/* Mobile Sticky Footer */}
-                    <div className="shrink-0 bg-white border-t border-slate-200 p-4 shadow-[0_-4px_20px_rgba(0,0,0,0.05)] z-50">
-                        <div className="flex justify-between items-center mb-4">
-                            <span className="text-slate-500 font-bold">الإجمالي النهائي:</span>
-                            <span className="text-xl font-black text-blue-600">{formatPrice(total)}</span>
-                        </div>
-                        <button
-                            onClick={handleCheckout}
-                            disabled={cart.length === 0 || loading}
-                            className="w-full flex items-center justify-center gap-3 py-4 rounded-2xl font-black text-lg bg-blue-600 text-white shadow-lg shadow-blue-200 active:scale-95 transition-all"
-                        >
-                            {loading ? <Loader2 className="animate-spin" /> : <><Receipt size={22} /> إتمام البيع</>}
-                        </button>
-                    </div>
-                </div>
-
-                {/* --- Desktop View (Side-by-Side - Reception) --- */}
-                <main className="hidden lg:flex flex-1 overflow-hidden">
-
-                {/* Cart — Left */}
-                <aside className="w-[380px] shrink-0 flex flex-col bg-white border-l border-slate-200 shadow-lg">
-                    <div className="px-5 py-4 border-b border-slate-100 flex justify-between items-center">
-                        <div className="flex items-center gap-2">
-                            <ShoppingCart size={20} className="text-blue-600" />
-                            <h2 className="font-extrabold text-slate-800 text-base">سلة المبيعات</h2>
-                        </div>
-                        <div className="flex items-center gap-1">
-                            <button
-                                onClick={handleReprintLast}
-                                title="إعادة طباعة آخر فاتورة"
-                                className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all"
-                            >
-                                <Printer size={18} />
-                            </button>
-                            <div className="relative">
-                                <button
-                                    onClick={() => setShowHeldOrders(!showHeldOrders)}
-                                    title="الفواتير المعلقة"
-                                    className="p-2 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-xl transition-all"
-                                >
-                                    <Save size={18} />
-                                </button>
-                                {heldOrders.length > 0 && (
-                                    <span className="absolute -top-1 -right-1 w-5 h-5 bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center rounded-full border-2 border-white animate-pulse">
-                                        {heldOrders.length}
-                                    </span>
-                                )}
-
-                                {showHeldOrders && (
-                                    <div className="absolute top-full left-0 mt-2 w-72 bg-white border border-slate-200 rounded-2xl shadow-2xl z-50 p-2 animate-in slide-in-from-top-2">
-                                        <h3 className="text-xs font-bold text-slate-400 px-3 py-2 border-b border-slate-50 mb-2">الفواتير المعلقة</h3>
-                                        {heldOrders.length === 0 ? (
-                                            <p className="text-[11px] text-slate-400 text-center py-4">لا توجد فواتير معلقة</p>
-                                        ) : (
-                                            <div className="max-h-64 overflow-y-auto space-y-1">
-                                                {heldOrders.map(o => (
-                                                    <div key={o.id} className="group flex items-center justify-between p-2 hover:bg-slate-50 rounded-xl cursor-pointer">
-                                                        <div className="flex-1 min-w-0" onClick={() => resumeOrder(o)}>
-                                                            <p className="text-xs font-bold text-slate-800 truncate flex items-center gap-1">
-                                                                <User size={11} className="text-blue-400 shrink-0" />
-                                                                {o.customer?.name || 'زبون نقدي'}
-                                                            </p>
-                                                            <p className="text-[10px] text-slate-400">{o.time} • {o.cart.length} أصناف • {formatPrice(o.total)}</p>
-                                                        </div>
-                                                        <button onClick={() => deleteHeldOrder(o.id)} className="p-1 text-slate-300 hover:text-rose-500 opacity-0 group-hover:opacity-100"><X size={14} /></button>
-                                                    </div>
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
-                                )}
-                            </div>
-                            {cart.length > 0 && (
-                                <button onClick={() => setCart([])} className="flex items-center gap-1 text-xs text-slate-400 hover:text-rose-500 transition-colors px-2 py-1 rounded-lg hover:bg-rose-50">
-                                    <Trash2 size={13} />
-                                </button>
-                            )}
-                            <span className="bg-blue-100 text-blue-700 text-xs font-bold px-2.5 py-1 rounded-full min-w-[32px] text-center">{itemCount}</span>
-                        </div>
-                    </div>
-
-                    {/* Quick Customer Search & Hold */}
-                    <div className="px-4 py-3 bg-slate-50 border-b border-slate-100 flex gap-2">
-                        <div className="flex-1 relative">
-                            <CustomerQuickSearch
-                                onSelect={setSelectedCustomer}
-                                selectedCustomer={selectedCustomer}
-                            />
-                        </div>
-                        <button
-                            onClick={handleHoldOrder}
-                            disabled={cart.length === 0}
-                            className="bg-white border border-slate-200 text-slate-500 p-2.5 rounded-xl hover:bg-amber-50 hover:text-amber-600 hover:border-amber-200 transition-all disabled:opacity-40 disabled:cursor-not-allowed group"
-                            title="تعليق الفاتورة (Hold)"
-                        >
-                            <Save size={20} className="group-active:scale-90 transition-transform" />
-                        </button>
-                        <div className="relative">
-                            <button
-                                onClick={() => setIsPendingOrdersModalOpen(true)}
-                                className={`p-2.5 rounded-xl transition-all relative ${pendingOrders.length > 0 ? 'bg-rose-50 border border-rose-100 text-rose-600 animate-pulse hover:bg-rose-100' : 'bg-white border border-slate-200 text-slate-400 hover:bg-blue-50 hover:text-blue-600'}`}
-                                title="طلبات المنيو (QR)"
-                            >
-                                <Radio size={20} className={pendingOrders.length > 0 ? "animate-spin-slow" : ""} />
-                                {pendingOrders.length > 0 && (
-                                    <span className="absolute -top-1 -right-1 w-5 h-5 bg-rose-600 text-white text-[10px] font-black flex items-center justify-center rounded-full border-2 border-white">
-                                        {pendingOrders.length}
-                                    </span>
-                                )}
-                            </button>
-                        </div>
-                    </div>
-
-                    <div className="flex-1 overflow-y-auto scrollbar-thin p-4 space-y-2">
-                        {cart.length === 0 ? (
-                            <div className="h-full flex flex-col items-center justify-center text-slate-300 select-none">
-                                <ShoppingCart size={64} className="mb-4 opacity-30" />
-                                <p className="text-sm font-medium text-slate-400">لا توجد منتجات في السلة</p>
-                                <p className="text-xs text-slate-300 mt-1">امسح الباركود أو اختر منتجاً</p>
-                            </div>
-                        ) : (
-                            cart.map((item, idx) => (
-                                <CartItem
-                                    key={`${item.id}-${item.batch_id}-${idx}`}
-                                    item={item}
-                                    onUpdate={() => updateQuantity(idx, 1)}
-                                    onRemove={() => removeFromCart(idx)}
-                                />
-                            ))
-                        )}
-                    </div>
-
-                    <div className="shrink-0 border-t border-slate-100 p-5 bg-slate-50 space-y-3">
-                        <div className="space-y-1.5 text-sm">
-                            <div className="flex justify-between text-slate-500"><span>المجموع الفرعي</span><span>{formatPrice(total)}</span></div>
-                            <div className="flex justify-between text-slate-500"><span>الضريبة (0%)</span><span>0 ل.س</span></div>
-                        </div>
-                        <div className="flex justify-between items-end pt-2 border-t border-slate-200">
-                            <span className="font-extrabold text-slate-800 text-base">الإجمالي</span>
-                            <div className="text-left">
-                                <span className="block font-extrabold text-blue-700 text-2xl leading-none">{formatPrice(total)}</span>
-                                <span className="block font-bold text-emerald-600 text-sm mt-1">({formatUsd(cart.reduce((sum, i) => sum + (i.price_usd > 0 ? i.price_usd : (i.unit_price / (Number(localStorage.getItem('exchange_rate')) || 1))) * i.quantity, 0))})</span>
-                            </div>
-                        </div>
-                        <button
-                            id="checkout-btn"
-                            onClick={handleCheckout}
-                            disabled={cart.length === 0 || loading}
-                            className="w-full flex items-center justify-center gap-3 py-4 rounded-2xl font-extrabold text-base bg-gradient-to-r from-blue-600 to-indigo-600 text-white hover:from-blue-700 hover:to-indigo-700 disabled:from-slate-300 disabled:to-slate-300 disabled:text-slate-500 disabled:cursor-not-allowed shadow-lg shadow-blue-200 active:scale-95 transition-all"
-                        >
-                            {loading
-                                ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                                : <><Receipt size={20} /><span>إتمام عملية البيع</span><CheckCircle size={20} /></>
-                            }
-                        </button>
-                    </div>
+                {/* Cart Sidebar (Desktop) - Right Side in RTL */}
+                <aside className="hidden lg:flex w-[380px] shrink-0 flex-col bg-white border-l border-slate-200 shadow-xl z-10 h-full">
+                    <CartContent 
+                        cart={cart} 
+                        total={total} 
+                        onUpdateQuantity={updateQuantity} 
+                        onRemove={removeFromCart} 
+                        onCheckout={handleCheckout}
+                        itemCount={itemCount}
+                        onClear={handleClearCart}
+                        loading={loading}
+                        customer={selectedCustomer}
+                        onCustomerSelect={setSelectedCustomer}
+                        heldOrders={heldOrders}
+                        showHeld={showHeldOrders}
+                        setShowHeld={setShowHeldOrders}
+                        onDeleteHeld={deleteHeldOrder}
+                        onResumeHeld={resumeOrder}
+                        onOpenPending={() => setIsPendingOrdersModalOpen(true)}
+                        pendingCount={pendingOrders.length}
+                        onReprint={handleReprintLast}
+                        exchangeRate={exchangeRate}
+                    />
                 </aside>
 
-                {/* Products — Right */}
+                {/* Products Grid: Left Side in RTL */}
                 <section className="flex-1 flex flex-col overflow-hidden">
-                    {/* Feature 1: Grid search bar */}
-                    <div className="shrink-0 flex justify-between items-center px-6 py-4 gap-4">
-                        <div>
-                            <h2 className="font-extrabold text-slate-800 text-lg leading-tight">المنتجات</h2>
-                            <p className="text-xs text-slate-400 mt-0.5">
-                                {filteredItems.length !== flattenedInventory.length
-                                    ? `${filteredItems.length} نتيجة من ${flattenedInventory.length}`
-                                    : `${flattenedInventory.length} منتج/عنصر متوفر`}
-                            </p>
-                        </div>
+                    <div className="shrink-0 flex justify-between items-center px-4 py-3 md:px-6 md:py-4 gap-4">
+                        <h2 className="font-extrabold text-slate-800 text-xs md:text-lg leading-tight">المنتجات والوجبات</h2>
+                        <span className="text-[9px] md:text-xs text-slate-400 font-bold bg-white px-3 py-1 rounded-full border border-slate-100">
+                            {filteredItems.length} عنصر
+                        </span>
                     </div>
 
-                    <div className="flex-1 overflow-y-auto scrollbar-thin px-6 pb-6 pt-2">
+                    <div className="flex-1 overflow-y-auto scrollbar-thin px-4 pb-28 md:px-6 md:pb-6 pt-2">
                         {filteredItems.length === 0 ? (
-                            <div className="h-64 flex flex-col items-center justify-center text-slate-300">
-                                <Package size={56} className="mb-4 opacity-30" />
-                                <p className="text-sm font-medium text-slate-400">
-                                    {gridSearch ? `لا توجد منتجات تطابق "${gridSearch}"` : 'لا توجد منتجات من فئة الوجبات الحالية'}
-                                </p>
-                                {gridSearch && (
-                                    <button onClick={() => setGridSearch('')} className="mt-2 text-xs text-blue-500 hover:underline">
-                                        مسح البحث
-                                    </button>
-                                )}
+                            <div className="h-full flex flex-col items-center justify-center text-slate-300 py-20">
+                                <Package size={48} className="mb-4 opacity-20" />
+                                <p className="text-xs font-bold text-slate-400">لا توجد نتائج</p>
                             </div>
                         ) : (
-                            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                            <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-3 md:gap-4">
                                 {filteredItems.map((product, idx) => (
-                                    <ProductCard key={`${product.id}-${product.batch_id || idx}`} product={product} onAdd={addToCart} />
+                                    <ProductCard key={`${product.id}-${product.batch_id || idx}`} product={product} onAdd={addToCart} exchangeRate={exchangeRate} />
                                 ))}
                             </div>
                         )}
                     </div>
                 </section>
+
+                {/* Cart Drawer (Mobile) */}
+                {isCartDrawerOpen && (
+                    <div className="lg:hidden fixed inset-0 z-[60] flex flex-col justify-end">
+                        <div className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm" onClick={() => setIsCartDrawerOpen(false)} />
+                        <div className="relative bg-white rounded-t-[2.5rem] shadow-2xl h-[90vh] flex flex-col animate-in slide-in-from-bottom duration-300">
+                            <div className="w-12 h-1.5 bg-slate-200 rounded-full mx-auto my-3 shrink-0" />
+                            <div className="flex-1 overflow-hidden flex flex-col">
+                                <CartContent 
+                                    cart={cart} 
+                                    total={total} 
+                                    onUpdateQuantity={updateQuantity} 
+                                    onRemove={removeFromCart} 
+                                    onCheckout={handleCheckout}
+                                    itemCount={itemCount}
+                                    onClear={handleClearCart}
+                                    loading={loading}
+                                    customer={selectedCustomer}
+                                    onCustomerSelect={setSelectedCustomer}
+                                    heldOrders={heldOrders}
+                                    showHeld={showHeldOrders}
+                                    setShowHeld={setShowHeldOrders}
+                                    onDeleteHeld={deleteHeldOrder}
+                                    onResumeHeld={resumeOrder}
+                                    onOpenPending={() => setIsPendingOrdersModalOpen(true)}
+                                    pendingCount={pendingOrders.length}
+                                    onReprint={handleReprintLast}
+                                    exchangeRate={exchangeRate}
+                                />
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* Mobile Bottom Navigation / Checkout FAB */}
+                <div className="lg:hidden fixed bottom-6 inset-x-6 z-50">
+                    <button
+                        onClick={() => setIsCartDrawerOpen(true)}
+                        className="w-full bg-slate-900 text-white rounded-[2rem] p-4 flex items-center justify-between shadow-2xl shadow-slate-900/40 ring-4 ring-white active:scale-95 transition-all"
+                    >
+                        <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-blue-600 rounded-2xl flex items-center justify-center relative">
+                                <ShoppingCart size={20} />
+                                {itemCount > 0 && (
+                                    <span className="absolute -top-1 -right-1 w-5 h-5 bg-rose-500 text-white text-[10px] font-black flex items-center justify-center rounded-full border-2 border-slate-900 animate-bounce">
+                                        {itemCount}
+                                    </span>
+                                )}
+                            </div>
+                            <span className="font-black text-xs uppercase tracking-wider">عرض السلة</span>
+                        </div>
+                        <div className="text-left">
+                            <span className="block text-[9px] font-bold text-slate-400 uppercase tracking-widest text-left">الإجمالي</span>
+                            <span className="text-base font-black text-blue-400 leading-none">{(total || 0).toLocaleString('ar-SY')} ل.س</span>
+                        </div>
+                    </button>
+                </div>
             </main>
-        </div>
 
-            {/* Checkout Modal */}
-            <CheckoutModal
-                isOpen={isCheckoutModalOpen}
-                onClose={() => setIsCheckoutModalOpen(false)}
-                onConfirm={handleConfirmCheckout}
-                total={total}
-                loading={loading}
-                initialCustomer={selectedCustomer}
-            />
-
-            <BatchPickerModal
-                isOpen={isBatchModalOpen}
-                onClose={() => setIsBatchModalOpen(false)}
-                product={pendingProduct}
-                onSelect={(batch) => addToCart(pendingProduct, batch)}
-            />
-
-            {showScanner && (
-                <BarcodeScanner
-                    onScan={handleBarcodeScan}
-                    onClose={() => setShowScanner(false)}
-                />
-            )}
-
-            {/* Remote Scanner QR Modal */}
+            {/* Modals & Overlays */}
+            <CheckoutModal isOpen={isCheckoutModalOpen} onClose={() => setIsCheckoutModalOpen(false)} onConfirm={handleConfirmCheckout} total={total} totalUsd={totalUsd} loading={loading} initialCustomer={selectedCustomer} />
+            <BatchPickerModal isOpen={isBatchModalOpen} onClose={() => setIsBatchModalOpen(false)} product={pendingProduct} onSelect={(batch) => addToCart(pendingProduct, batch)} />
+            {showScanner && <BarcodeScanner onScan={handleBarcodeScan} onClose={() => setShowScanner(false)} />}
+            
             {isRemoteModalOpen && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
                     <div className="bg-white w-full max-w-sm rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200">
                         <div className="p-6 text-center border-b border-slate-50 relative">
-                            <button onClick={() => setIsRemoteModalOpen(false)} className="absolute left-4 top-4 p-2 hover:bg-slate-100 rounded-full text-slate-400 transition-colors">
-                                <X size={20} />
-                            </button>
-                            <div className="w-14 h-14 bg-emerald-100 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                                <MonitorSmartphone className="text-emerald-600" size={28} />
-                            </div>
-                            <h3 className="text-xl font-black text-slate-800">ربط جوال كـ ماسح ضوئي</h3>
-                            <p className="text-sm text-slate-500 mt-1 font-medium italic">استخدم هاتفك لمسح الأصناف بسرعة!</p>
+                            <button onClick={() => setIsRemoteModalOpen(false)} className="absolute left-4 top-4 p-2 text-slate-400"><X size={20} /></button>
+                            <MonitorSmartphone className="text-emerald-600 mx-auto mb-2" size={32} />
+                            <h3 className="text-lg font-black text-slate-800">ربط ماسح جوال</h3>
                         </div>
-
-                        <div className="p-8 flex flex-col items-center gap-6">
-                            <div className="p-4 bg-white border-4 border-slate-100 rounded-3xl shadow-inner">
-                                <QRCodeCanvas
-                                    // الرابط يتولد ديناميكياً بناءً على العنوان الذي تفتح منه النظام حالياً
-                                    value={`${window.location.origin}/${slug}/scan/${remoteSessionId}`}
-                                    size={180}
-                                    level="H"
-                                    includeMargin={true}
-                                />
+                        <div className="p-8 flex flex-col items-center gap-4">
+                            <div className="p-2 bg-white border-4 border-slate-50 rounded-2xl">
+                                <QRCodeCanvas value={`${window.location.origin}/${slug}/scan/${remoteSessionId}`} size={160} />
                             </div>
-
-                            <div className="w-full space-y-3">
-                                <div className="flex items-center gap-2 p-3 bg-slate-50 rounded-2xl border border-slate-100">
-                                    <Link size={16} className="text-slate-400 shrink-0" />
-                                    <p className="text-[10px] font-mono text-slate-500 truncate text-left flex-1" dir="ltr">
-                                        {`${window.location.origin}/${slug}/scan/${remoteSessionId}`}
-                                    </p>
-                                </div>
-                                <div className="flex items-center gap-2 text-xs font-bold text-amber-600 bg-amber-50 p-3 rounded-xl border border-amber-100">
-                                    <Zap size={14} className="shrink-0" />
-                                    <span>يجب أن يكون الجوال مسجلاً دخوله على نفس المتجر.</span>
-                                </div>
-                            </div>
+                            <p className="text-[10px] text-slate-400 text-center font-bold">امسح الكود لفتح ماسح الباركود على هاتفك</p>
                         </div>
-
-                        <div className="p-6 bg-slate-50 flex justify-center">
-                            <button
-                                onClick={() => setIsRemoteModalOpen(false)}
-                                className="w-full py-3 bg-slate-800 text-white rounded-xl font-bold hover:bg-slate-900 transition-all shadow-lg active:scale-95"
-                            >
-                                إغلاق
-                            </button>
-                        </div>
+                        <div className="p-4 bg-slate-50"><button onClick={() => setIsRemoteModalOpen(false)} className="w-full py-3 bg-slate-800 text-white rounded-xl font-bold">إغلاق</button></div>
                     </div>
                 </div>
             )}
 
-            <PendingOrdersModal
-                isOpen={isPendingOrdersModalOpen}
-                onClose={() => setIsPendingOrdersModalOpen(false)}
-                orders={pendingOrders}
-                onAccept={handleAcceptPendingOrder}
-                onReject={handleRejectPendingOrder}
-                loading={loading}
-            />
+            <PendingOrdersModal isOpen={isPendingOrdersModalOpen} onClose={() => setIsPendingOrdersModalOpen(false)} orders={pendingOrders} onAccept={handleAcceptPendingOrder} onReject={handleRejectPendingOrder} loading={loading} />
         </div>
     );
 };

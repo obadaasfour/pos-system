@@ -37,6 +37,7 @@ class PurchasesController extends Controller
             'items.*.quantity'         => 'required|integer|min:1',
             'items.*.unit_cost_usd'    => 'required|numeric|min:0',
             'items.*.unit_sale_price'  => 'required|numeric|min:0',
+            'items.*.planned_price_usd'=> 'nullable|numeric|min:0',
         ]);
 
         return DB::transaction(function () use ($request) {
@@ -86,13 +87,21 @@ class PurchasesController extends Controller
                         'cost_usd'          => $item['unit_cost_usd'],
                         'exchange_rate'     => $exchangeRate,
                         'cost_local'        => $costLocal,
-                        'sale_price'        => $item['unit_sale_price']
+                        'sale_price'        => $item['unit_sale_price'],
+                        'planned_price_usd' => $item['planned_price_usd'] ?? 0,
+                        'sale_price_usd'    => $item['planned_price_usd'] ?? 0,
                     ]);
                     $batchId = $newBatch->id;
                 }
 
-                // Update Overall Stock
+                // Update Overall Stock & Planned Price
                 $product->increment('stock_quantity', $item['quantity']);
+                if (isset($item['planned_price_usd']) && (float)$item['planned_price_usd'] > 0) {
+                    $product->update([
+                        'planned_price_usd' => $item['planned_price_usd'],
+                        'sale_price_usd'    => $item['planned_price_usd']
+                    ]);
+                }
 
                 $purchaseItems[] = [
                     'store_id'       => $storeId,
@@ -211,14 +220,18 @@ class PurchasesController extends Controller
                     $product->restore();
                 }
 
-                $newSalePrice = (float) ($prices[$item->id] ?? $product->price);
+                $itemPricing = $prices[$item->id] ?? [];
+                $newSalePrice = (float) ($itemPricing['syp'] ?? $product->price);
+                $plannedUsd   = (float) ($itemPricing['usd'] ?? $product->planned_price_usd ?? 0);
                 $invoiceCost  = (float) $item->unit_cost_price;
 
                 // 1. Update overall product stock and price
                 $product->increment('stock_quantity', $item->quantity);
                 $product->update([
-                    'price_syr'  => $newSalePrice,
-                    'cost_price' => $invoiceCost
+                    'price_syr'         => $newSalePrice,
+                    'planned_price_usd' => $plannedUsd,
+                    'sale_price_usd'    => $plannedUsd,
+                    'cost_price'        => $invoiceCost
                 ]);
 
                 // 2. Create a batch for this item
@@ -231,7 +244,9 @@ class PurchasesController extends Controller
                     'cost_usd'          => round($invoiceCost / $exchangeRate, 2),
                     'exchange_rate'     => $exchangeRate,
                     'cost_local'        => $invoiceCost,
-                    'sale_price'        => $newSalePrice
+                    'sale_price'        => $newSalePrice,
+                    'planned_price_usd' => $plannedUsd,
+                    'sale_price_usd'    => $plannedUsd,
                 ]);
 
                 // 3. Update purchase item

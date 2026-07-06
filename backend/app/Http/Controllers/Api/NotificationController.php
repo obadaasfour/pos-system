@@ -10,7 +10,7 @@ class NotificationController extends Controller
     /**
      * Get unread notifications for the authenticated user.
      */
-    public function index(Request $request)
+    public function index(Request $request, $slug)
     {
         $notifications = $request->user()->unreadNotifications()
             ->latest()
@@ -23,7 +23,7 @@ class NotificationController extends Controller
     /**
      * Mark a specific notification as read.
      */
-    public function markAsRead(Request $request, $id)
+    public function markAsRead(Request $request, $slug, $id)
     {
         $notification = $request->user()->notifications()->findOrFail($id);
         $notification->markAsRead();
@@ -34,7 +34,7 @@ class NotificationController extends Controller
     /**
      * Mark all notifications as read.
      */
-    public function markAllAsRead(Request $request)
+    public function markAllAsRead(Request $request, $slug)
     {
         $request->user()->unreadNotifications->markAsRead();
 

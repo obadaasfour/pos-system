@@ -1,74 +1,64 @@
-import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate, useParams } from 'react-router-dom';
-import LoginPage from './pages/LoginPage';
-import RegisterPage from './pages/RegisterPage';
-import PosPage from './pages/PosPage';
-import PurchasesPage from './pages/PurchasesPage';
-import SuppliersPage from './pages/SuppliersPage';
-import ProductListPage from './pages/ProductListPage';
-import AddProductPage from './pages/AddProductPage';
-import EditProductPage from './pages/EditProductPage';
-import InvoicesPage from './pages/InvoicesPage';
-import DashboardPage from './pages/DashboardPage';
-import ReportsPage from './pages/ReportsPage';
-import DebtLedgerPage from './pages/DebtLedgerPage';
-import SettingsPage from './pages/SettingsPage';
-import EmployeesPage from './pages/EmployeesPage';
-import ExpensesPage from './pages/ExpensesPage';
-import ActivityLogsPage from './pages/ActivityLogsPage';
-import UsersPage from './pages/UsersPage';
-import SuperAdminLayout from './components/SuperAdminLayout';
-import StoreLayout from './components/StoreLayout';
-import PublicMenu from './pages/PublicMenu';
-import SuperAdminDashboard from './pages/SuperAdminDashboard';
-import StoresPage from './pages/StoresPage';
-import LandingPage from './pages/LandingPage';
-import NotFoundPage from './pages/NotFoundPage';
-import SupplierDashboard from './pages/SupplierDashboard';
-import RemoteScannerPage from './pages/RemoteScannerPage';
+import React, { lazy, Suspense } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './context/AuthContext';
+import api from './api';
 import echo from './utils/echo';
 import Swal from 'sweetalert2';
-import api from './api';
+import { Box, RefreshCcw } from 'lucide-react';
+import SoundService from './utils/SoundService';
 
-// ─── Production-Level Route Guards ──────────────────────────
+// ─── Micro-frontend Lazy Loading ──────────────────────────
+const LandingPage = lazy(() => import('./landing/NewLandingPage'));
+const LoginPage = lazy(() => import('./pages/LoginPage'));
+const RegisterPage = lazy(() => import('./pages/RegisterPage'));
+const PosPage = lazy(() => import('./pages/PosPage'));
+const PurchasesPage = lazy(() => import('./pages/PurchasesPage'));
+const SuppliersPage = lazy(() => import('./pages/SuppliersPage'));
+const ProductListPage = lazy(() => import('./pages/ProductListPage'));
+const AddProductPage = lazy(() => import('./pages/AddProductPage'));
+const EditProductPage = lazy(() => import('./pages/EditProductPage'));
+const InvoicesPage = lazy(() => import('./pages/InvoicesPage'));
+const DashboardPage = lazy(() => import('./pages/DashboardPage'));
+const ReportsPage = lazy(() => import('./pages/ReportsPage'));
+const DebtLedgerPage = lazy(() => import('./pages/DebtLedgerPage'));
+const SettingsPage = lazy(() => import('./pages/SettingsPage'));
+const EmployeesPage = lazy(() => import('./pages/EmployeesPage'));
+const ExpensesPage = lazy(() => import('./pages/ExpensesPage'));
+const ActivityLogsPage = lazy(() => import('./pages/ActivityLogsPage'));
+const UsersPage = lazy(() => import('./pages/UsersPage'));
+const SuperAdminLayout = lazy(() => import('./components/SuperAdminLayout'));
+const StoreLayout = lazy(() => import('./components/StoreLayout'));
+const PublicMenu = lazy(() => import('./pages/PublicMenu'));
+const SuperAdminDashboard = lazy(() => import('./pages/SuperAdminDashboard'));
+const StoresPage = lazy(() => import('./pages/StoresPage'));
+const NotFoundPage = lazy(() => import('./pages/NotFoundPage'));
+const SupplierDashboard = lazy(() => import('./pages/SupplierDashboard'));
+const RemoteScannerPage = lazy(() => import('./pages/RemoteScannerPage'));
+const VerifyInvoicePage = lazy(() => import('./pages/VerifyInvoicePage'));
 
-/**
- * StoreLoginGuard:
- * - Prevents authenticated users from reaching login.
- * - Redirects SUPER_ADMIN to dashboard with replace: true.
- * - Redirects standard users to THEIR store.
- */
-const StoreLoginGuard = ({ onLogin }) => {
-    const { isAuthenticated, isSuperAdmin, user, isLoading } = useAuth();
-    const { slug } = useParams();
-
-    if (isLoading) return <Loader />;
-
-    if (isAuthenticated) {
-        if (isSuperAdmin) {
-            return <Navigate to={`/${slug}/dashboard`} replace />;
-        }
-        // Redirect standard user to their own slug if they try to log in elsewhere
-        return <Navigate to={`/${user?.store?.slug || ''}/dashboard`} replace />;
-    }
-
-    return <LoginPage onLogin={onLogin} />;
-};
-
-/**
- * GlobalRedirectHandler:
- * - Handles the root "/" based on auth state and role.
- */
+// ─── Global Redirect Handler ──────────────────────────────
 const GlobalRedirectHandler = () => {
-    const { isAuthenticated, isSuperAdmin, isSupplier, user, isLoading } = useAuth();
+    const { isAuthenticated, isSuperAdmin, isSupplier, user, isLoading, slug } = useAuth();
 
     if (isLoading) return <Loader />;
 
     if (isAuthenticated) {
         if (isSuperAdmin) return <Navigate to="/super-admin" replace />;
-        if (isSupplier) return <Navigate to="/supplier/dashboard" replace />;
-        return <Navigate to={`/${user?.store?.slug || ''}/dashboard`} replace />;
+        if (isSupplier) return <Navigate to="/supplier-portal" replace />;
+        
+        // Retrieve slug from context or user object
+        const targetSlug = slug || user?.store?.slug;
+
+        if (targetSlug) {
+            // Redirect Managers and Cashiers to POS, others to Dashboard
+            if (user?.role === 'admin' || user?.role === 'cashier') {
+                return <Navigate to={`/${targetSlug}/pos`} replace />;
+            }
+            return <Navigate to={`/${targetSlug}/dashboard`} replace />;
+        }
+        
+        // Fallback if no slug is found but authenticated
+        return <Navigate to="/" replace />;
     }
 
     return <LandingPage />;
@@ -78,16 +68,19 @@ function App() {
     const { isAdmin, isSuperAdmin, isSupplier, isAuthenticated, isLoading, onLogin, user } = useAuth();
 
     React.useEffect(() => {
+        // ─── Programmatic Theme Cleanup ──────────────────────────────
+        if (localStorage.getItem('theme-cleanup-v1') !== 'done') {
+            localStorage.removeItem('theme');
+            document.documentElement.classList.remove('dark');
+            localStorage.setItem('theme-cleanup-v1', 'done');
+        }
+
         if (!isAuthenticated || !user) return;
 
-        // 1. Listen for Store-specific Inventory & B2B Updates
         if (user.store_id) {
             echo.private(`store.${user.store_id}`)
                 .listen('.inventory.updated', (e) => {
-                    console.log('Real-time Inventory Update received:', e);
-                    // Clear Dexie/IDB cache to force refetch on components
-                    import('./db').then(db => db.cacheProducts(1, [])); 
-                    // Note: In a production app, we'd more precisely update the specific product
+                    import('./db').then(db => db.clearProducts());
                     Swal.fire({
                         title: 'تحديث مخزني',
                         text: 'تم تحديث كميات بعض المنتجات في المتجر.',
@@ -100,10 +93,8 @@ function App() {
                 });
         }
 
-        // 2. Listen for Global Announcements (Standard API-based)
         echo.channel('announcements')
             .listen('.announcement.created', (e) => {
-                console.log('Global Announcement received:', e);
                 Swal.fire({
                     title: 'تنبيه جديد',
                     text: e.message,
@@ -113,185 +104,150 @@ function App() {
                 });
             });
 
-        // 3. Listen for Global New Product (Public Socket-based) - ONLY for Stores
-        console.log('[Echo Debug] Checking subscription conditions:', { isSuperAdmin, isSupplier, hasEcho: !!echo });
-        if (!isSuperAdmin && !isSupplier && echo) {
-            console.log('[Echo Debug] Subscribing to global-announcements...');
-            echo.channel('global-announcements')
-                .listen('.product.global_created', (e) => {
-                    console.log('Global New Product Broadcast:', e);
+        // ─── Private Notifications Listener ──────────────────────────
+        echo.private(`App.Models.User.${user.id}`)
+            .notification((notification) => {
+                console.log('[Notification] Real-time notification received:', notification);
+                
+                if (notification.type === 'b2b_order_status') {
+                    SoundService.playSuccess();
                     Swal.fire({
-                        title: '<span class="text-blue-600 font-black text-xl">🚀 منتج جديد من المورد!</span>',
-                        html: `
-                            <div class="flex flex-col items-center gap-4 py-4">
-                                ${e.image_path ? `<img src="${e.image_path}" class="w-32 h-32 object-cover rounded-2xl shadow-md border border-slate-200" />` : `
-                                    <div class="w-32 h-32 bg-slate-100 rounded-2xl flex items-center justify-center text-slate-400 shadow-sm">
-                                        <i class="fas fa-box text-4xl"></i>
-                                    </div>
-                                `}
-                                <div class="flex flex-col items-center text-center">
-                                    <p class="text-xs font-black text-slate-400 uppercase tracking-widest mb-1">${e.supplier_name}</p>
-                                    <h4 class="text-2xl font-black text-slate-800 leading-tight">${e.product_name}</h4>
-                                    <div class="flex items-center gap-3 mt-4">
-                                        <span class="px-3 py-1.5 bg-blue-50 text-blue-600 rounded-xl text-sm font-black border border-blue-200">$${e.price_usd}</span>
-                                        <span class="px-3 py-1.5 bg-emerald-50 text-emerald-600 rounded-xl text-sm font-black border border-emerald-200">${Number(e.price_syr).toLocaleString()} ل.س</span>
-                                    </div>
-                                    <div class="mt-4 flex items-center gap-2 text-slate-500 font-bold bg-slate-50 px-4 py-2 rounded-full border border-slate-100">
-                                        <i class="fas fa-phone-alt text-blue-500"></i>
-                                        <span>${e.supplier_phone || 'رقم الهاتف غير متوفر'}</span>
-                                    </div>
-                                </div>
-                            </div>
-                        `,
-                        showConfirmButton: true,
-                        confirmButtonText: '<i class="fas fa-shopping-cart"></i> اطلب الآن',
-                        showDenyButton: false,
+                        title: 'تحديث طلب B2B 🚀',
+                        text: notification.message,
+                        icon: 'success',
+                        confirmButtonText: 'عرض الفاتورة 📄',
                         showCancelButton: true,
                         cancelButtonText: 'إغلاق',
                         confirmButtonColor: '#2563eb',
-                        width: '28em'
                     }).then((result) => {
-                        if (result.isConfirmed) {
-                            // B2B Order Flow
-                            Swal.fire({
-                                title: 'طلب كمية جديدة',
-                                text: `أدخل الكمية المطلوبة من ${e.product_name}:`,
-                                input: 'number',
-                                inputAttributes: { min: 1, step: 1 },
-                                inputValue: 1,
-                                showCancelButton: true,
-                                confirmButtonText: 'إرسال الطلب',
-                                cancelButtonText: 'إلغاء',
-                                showLoaderOnConfirm: true,
-                                preConfirm: (quantity) => {
-                                    return api.post('/supplier-orders', {
-                                        product_id: e.product_id,
-                                        quantity: quantity,
-                                        supplier_id: e.supplier_id
-                                    }).then(response => {
-                                        return response.data;
-                                    }).catch(error => {
-                                        Swal.showValidationMessage(`فشل الطلب: ${error.response?.data?.message || error.message}`);
-                                    });
-                                },
-                                allowOutsideClick: () => !Swal.isLoading()
-                            }).then((orderResult) => {
-                                if (orderResult.isConfirmed) {
-                                    Swal.fire({
-                                        title: 'تم الطلب!',
-                                        text: 'لقد تم إرسال طلبك للمورد بنجاح.',
-                                        icon: 'success',
-                                        timer: 3000,
-                                        showConfirmButton: false
-                                    });
-                                }
-                            });
-                        } else if (result.isDenied) {
-                            // Call Flow
-                            if (e.supplier_phone) {
-                                window.location.href = `tel:${e.supplier_phone}`;
-                            } else {
-                                Swal.fire({
-                                    title: 'عذراً',
-                                    text: 'رقم المورد غير متوفر.',
-                                    icon: 'warning',
-                                    toast: true,
-                                    position: 'top-end',
-                                    timer: 3000,
-                                    showConfirmButton: false
-                                });
-                            }
+                        if (result.isConfirmed && notification.url) {
+                            window.location.href = notification.url;
                         }
                     });
-                });
-        }
+                } else {
+                    // Generic fallback for other notifications
+                    Swal.fire({
+                        title: 'إشعار جديد',
+                        text: notification.message || 'وصلك إشعار جديد في النظام.',
+                        icon: 'info',
+                        toast: true,
+                        position: 'top-left',
+                        timer: 5000,
+                        showConfirmButton: false
+                    });
+                }
+            });
 
-        // 4. User Login Logic for existing announcements (DISABLED: Relying on Echo Listeners)
-        /*
-        if (!isSuperAdmin && !isSupplier) {
-            api.get('/announcements/latest')
-                ...
-        }
-        */
-
-        // 5. Cleanup Function: Essential to prevent memory leaks and duplicate pop-ups
         return () => {
             if (echo) {
-                // Leave private channels first
-                if (user?.store_id) {
-                    echo.leave(`store.${user.store_id}`);
-                }
-                // Leave global channels
+                if (user?.store_id) echo.leave(`store.${user.store_id}`);
                 echo.leave('announcements');
                 echo.leave('global-announcements');
             }
         };
-    }, [isAuthenticated, user, isSuperAdmin, isSupplier]);
-
-    if (isLoading) return <Loader />;
+    }, [isAuthenticated, user]);
 
     return (
-        <Router>
-            <Routes>
-                {/* 1. Global / Root */}
-                <Route path="/" element={<GlobalRedirectHandler />} />
+        <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
+            <Suspense fallback={<Loader />}>
+                <Routes>
+                    <Route path="/" element={<GlobalRedirectHandler />} />
+                    <Route path="/login" element={!isAuthenticated ? <LoginPage onLogin={onLogin} /> : <GlobalRedirectHandler />} />
 
-                {/* 2. Unified Login */}
-                <Route path="/login" element={!isAuthenticated ? <LoginPage onLogin={onLogin} /> : <GlobalRedirectHandler />} />
-                <Route path="/super-admin/login" element={<Navigate to="/login" replace />} />
-
-                {/* 3. Supplier Routes */}
-                <Route path="/supplier" element={isAuthenticated && isSupplier ? <div className="min-h-screen bg-slate-50"><SupplierDashboard /></div> : <Navigate to="/login" replace />}>
-                    <Route path="dashboard" element={<SupplierDashboard />} />
-                </Route>
-
-                {/* 4. Global / Super Admin Routes */}
-                <Route path="/super-admin" element={isAuthenticated && isSuperAdmin ? <SuperAdminLayout /> : <Navigate to="/login" replace />}>
-                    <Route index element={<SuperAdminDashboard />} />
-                    <Route path="stores" element={<StoresPage />} />
-                    <Route path="activity-logs" element={<ActivityLogsPage />} />
-                    <Route path="settings" element={<SettingsPage />} />
-                </Route>
-
-                {/* 4. Store Specific Routes (/:slug) */}
-                <Route path="/:slug">
-                    {/* Store Public */}
-                    <Route path="login" element={<StoreLoginGuard onLogin={onLogin} />} />
-                    <Route path="register" element={!isAuthenticated ? <RegisterPage onLogin={onLogin} /> : <Navigate to="/" replace />} />
-                    <Route path="menu" element={<PublicMenu />} />
-
-                    {/* Store Protected */}
-                    <Route element={isAuthenticated ? <StoreLayout /> : <Navigate to="login" replace />}>
-                        <Route index element={isAdmin || isSuperAdmin ? <DashboardPage /> : <Navigate to="pos" replace />} />
-                        <Route path="scan/:sessionId" element={<RemoteScannerPage />} />
-                        <Route path="dashboard" element={isAdmin || isSuperAdmin ? <DashboardPage /> : <Navigate to="pos" replace />} />
-                        <Route path="pos" element={<PosPage />} />
-                        <Route path="invoices" element={<InvoicesPage />} />
-                        <Route path="reports" element={isAdmin || isSuperAdmin ? <ReportsPage /> : <Navigate to="../pos" replace />} />
-                        <Route path="debts" element={<DebtLedgerPage />} />
-                        <Route path="products" element={isAdmin || isSuperAdmin ? <ProductListPage /> : <Navigate to="../pos" replace />} />
-                        <Route path="products/add" element={isAdmin || isSuperAdmin ? <AddProductPage /> : <Navigate to="../products" replace />} />
-                        <Route path="products/edit/:id" element={isAdmin || isSuperAdmin ? <EditProductPage /> : <Navigate to="../products" replace />} />
-                        <Route path="purchases" element={isAdmin || isSuperAdmin ? <PurchasesPage /> : <Navigate to="../pos" replace />} />
-                        <Route path="suppliers" element={isAdmin || isSuperAdmin ? <SuppliersPage /> : <Navigate to="../pos" replace />} />
-                        <Route path="employees" element={isAdmin || isSuperAdmin ? <EmployeesPage /> : <Navigate to="../pos" replace />} />
-                        <Route path="expenses" element={isAdmin || isSuperAdmin ? <ExpensesPage /> : <Navigate to="../pos" replace />} />
-                        <Route path="users" element={isAdmin || isSuperAdmin ? <UsersPage /> : <Navigate to="../pos" replace />} />
-                        <Route path="settings" element={isAdmin || isSuperAdmin ? <SettingsPage /> : <Navigate to="../pos" replace />} />
-                        <Route path="activity-logs" element={isAdmin || isSuperAdmin ? <ActivityLogsPage /> : <Navigate to="../pos" replace />} />
+                    <Route path="/super-admin" element={isAuthenticated && isSuperAdmin ? <SuperAdminLayout /> : <Navigate to="/login" replace />}>
+                        <Route index element={<SuperAdminDashboard />} />
+                        <Route path="stores" element={<StoresPage />} />
+                        <Route path="activity-logs" element={<ActivityLogsPage />} />
+                        <Route path="suppliers" element={<SuppliersPage />} />
+                        <Route path="settings" element={<SettingsPage />} />
                     </Route>
-                </Route>
 
-                {/* Catch-all */}
-                <Route path="*" element={<NotFoundPage />} />
-            </Routes>
+                    <Route path="/supplier-portal" element={isAuthenticated && isSupplier ? <SupplierLayout /> : <Navigate to="/login" replace />}>
+                        <Route index element={<SupplierDashboard />} />
+                    </Route>
+
+                    <Route path="/:slug">
+                        <Route path="register" element={!isAuthenticated ? <RegisterPage onLogin={onLogin} /> : <Navigate to="/" replace />} />
+                        <Route path="menu" element={<PublicMenu />} />
+                        <Route path="verify-invoice/:uuid" element={<VerifyInvoicePage />} />
+                        <Route element={isAuthenticated ? <StoreLayout /> : <Navigate to="/login" replace />}>
+                            <Route index element={<DashboardPage />} />
+                            <Route path="dashboard" element={<DashboardPage />} />
+                            <Route path="pos" element={<PosPage />} />
+                            <Route path="scan/:sessionId" element={<RemoteScannerPage />} />
+                            <Route path="invoices" element={<InvoicesPage />} />
+                            <Route path="reports" element={<ReportsPage />} />
+                            <Route path="debts" element={<DebtLedgerPage />} />
+                            <Route path="products" element={<ProductListPage />} />
+                            <Route path="products/add" element={<AddProductPage />} />
+                            <Route path="products/edit/:id" element={<EditProductPage />} />
+                            <Route path="purchases" element={<PurchasesPage />} />
+                            <Route path="suppliers" element={<SuppliersPage />} />
+                            <Route path="employees" element={<EmployeesPage />} />
+                            <Route path="expenses" element={<ExpensesPage />} />
+                            <Route path="users" element={<UsersPage />} />
+                            <Route path="settings" element={<SettingsPage />} />
+                            <Route path="activity-logs" element={<ActivityLogsPage />} />
+                        </Route>
+                    </Route>
+
+                    <Route path="*" element={<NotFoundPage />} />
+                </Routes>
+            </Suspense>
         </Router>
     );
 }
 
+const SupplierLayout = () => (
+    <ErrorBoundary>
+        <div className="min-h-screen bg-slate-50">
+            <SupplierDashboard />
+        </div>
+    </ErrorBoundary>
+);
+
+class ErrorBoundary extends React.Component {
+    constructor(props) {
+        super(props);
+        this.state = { hasError: false, error: null };
+    }
+    static getDerivedStateFromError(error) {
+        return { hasError: true, error };
+    }
+    componentDidCatch(error, errorInfo) {
+        console.error("ErrorBoundary caught an error:", error, errorInfo);
+    }
+    render() {
+        if (this.state.hasError) {
+            return (
+                <div className="min-h-screen flex items-center justify-center bg-slate-50 p-6 text-center" dir="rtl">
+                    <div className="max-w-md w-full bg-white p-10 rounded-[3rem] shadow-2xl border border-rose-100">
+                        <div className="w-20 h-20 bg-rose-50 rounded-full flex items-center justify-center text-rose-500 mx-auto mb-6">
+                            <Box size={40} />
+                        </div>
+                        <h2 className="text-2xl font-black text-slate-800 mb-4">عذراً، حدث خطأ غير متوقع</h2>
+                        <p className="text-slate-500 font-medium mb-8 leading-relaxed">فشل النظام في تحميل بوابة المورد. يرجى المحاولة مرة أخرى أو الاتصال بالدعم الفني.</p>
+                        <button 
+                            onClick={() => window.location.reload()}
+                            className="w-full py-4 bg-slate-900 text-white rounded-2xl font-bold shadow-xl hover:bg-blue-600 transition-all"
+                        >
+                            إعادة تحميل الصفحة
+                        </button>
+                    </div>
+                </div>
+            );
+        }
+        return this.props.children;
+    }
+}
+
 const Loader = () => (
-    <div className="flex items-center justify-center h-screen bg-slate-900">
-        <div className="w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+    <div className="flex items-center justify-center h-screen bg-slate-50">
+        <div className="relative w-16 h-16">
+            <div className="absolute inset-0 border-4 border-blue-500/20 rounded-full"></div>
+            <div className="absolute inset-0 border-4 border-t-blue-600 rounded-full animate-spin"></div>
+            <div className="absolute inset-0 blur-lg bg-blue-500/20 rounded-full animate-pulse"></div>
+        </div>
     </div>
 );
 

@@ -15,15 +15,12 @@ return [
     |
     */
 
-    'stateful' => array_merge(
-        explode(',', env('SANCTUM_STATEFUL_DOMAINS', 'localhost,localhost:5173,127.0.0.1,127.0.0.1:5173')),
-        [
-            $_SERVER['HTTP_HOST'] ?? null,
-            $_SERVER['SERVER_NAME'] ?? null,
-            '192.168.0.105', // Explicitly add user's current IP for stability
-            '192.168.0.105:5173',
-        ]
-    ),
+    'stateful' => explode(',', env('SANCTUM_STATEFUL_DOMAINS', sprintf(
+        '%s%s%s',
+        'localhost,localhost:5173,127.0.0.1,127.0.0.1:5173',
+        env('FRONTEND_URL') ? ','.parse_url(env('FRONTEND_URL'), PHP_URL_HOST) : '',
+        env('FRONTEND_URL') ? ','.parse_url(env('FRONTEND_URL'), PHP_URL_HOST).':5173' : ''
+    ))),
 
     /*
     |--------------------------------------------------------------------------

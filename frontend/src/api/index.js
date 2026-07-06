@@ -5,7 +5,7 @@ axios.defaults.withCredentials = true;
 
 const host = window.location.hostname;
 const api = axios.create({
-    baseURL: import.meta.env.VITE_API_URL || `http://192.168.2.92:8000/api`,
+    baseURL: import.meta.env.VITE_API_URL || `http://asus-lp.local:8000/api`,
     headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
@@ -17,33 +17,45 @@ api.interceptors.request.use((config) => {
     // Debug: Monitor token presence as requested
     const posToken = localStorage.getItem('pos_token');
     const legacyToken = localStorage.getItem('token');
-    const slug = localStorage.getItem('pos_slug');
+    let slug = localStorage.getItem('pos_slug');
     
+    // Robust Global Routing Detection
+    const globalPaths = [
+        'super-admin',
+        'validate-slug',
+        'supplier/', // Matches /supplier/dashboard, /supplier/orders but NOT /suppliers
+        'suppliers',
+        'settings',
+        'broadcasting/auth',
+        'login',
+        'demo-login'
+    ];
+    
+    const isGlobal = globalPaths.some(path => config.url.includes(path)) || 
+                     config.url === '/login' || config.url === 'login'; 
+
+    if (!slug && !isGlobal) {
+        // Fallback: try to extract slug from window location if we are in a tenant route
+        const match = window.location.pathname.match(/^\/([^/]+)/);
+        if (match && match[1]) {
+            const potentialSlug = match[1];
+            if (!globalPaths.some(path => potentialSlug.includes(path.replace('/', ''))) && potentialSlug !== 'login') {
+                slug = potentialSlug;
+            }
+        }
+    }
+
     if (legacyToken) {
         console.warn(`[API] Found legacy 'token' in localStorage: ${legacyToken.substring(0, 10)}...`);
     }
 
-    console.log(`[API Request] ${config.method?.toUpperCase()} ${config.url} | Token Found: ${!!posToken}`);
+    console.log(`[API Request] ${config.method?.toUpperCase()} ${config.url} | Token Found: ${!!posToken} | Slug: ${slug || 'None'}`);
 
     // Always attach token if available
     if (posToken) {
         config.headers.Authorization = `Bearer ${posToken}`;
     }
 
-    // Robust Global Routing Detection
-    // We explicitly list paths that should NOT be prefixed with a store slug
-    const globalPaths = [
-        'super-admin',
-        'validate-slug',
-        'notifications',
-        'supplier/', // Matches /supplier/dashboard, /supplier/orders but NOT /suppliers
-        'settings',
-        'broadcasting/auth'
-    ];
-    
-    const isGlobal = globalPaths.some(path => config.url.includes(path)) || 
-                     config.url === '/login' || config.url === 'login'; // Login itself is tricky but often handled separately
-    
     if (!isGlobal && slug) {
         const cleanUrl = config.url.startsWith('/') ? config.url.substring(1) : config.url;
         // Don't prepend if it's already there

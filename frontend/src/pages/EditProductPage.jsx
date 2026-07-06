@@ -62,7 +62,10 @@ const EditProductPage = () => {
         const fetchCategories = async () => {
             try {
                 const res = await api.get('/categories');
-                setCategories(res.data);
+                console.log('Received Data:', res.data);
+                const actualData = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+                setCategories(actualData);
+                import('../db').then(db => db.cacheCategories(res.data));
             } catch (err) { console.error(err); }
         };
         const fetchSuppliers = async () => {

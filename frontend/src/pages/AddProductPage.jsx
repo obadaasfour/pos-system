@@ -8,7 +8,7 @@ import {
     Smartphone, Link, MonitorSmartphone, Zap
 } from 'lucide-react';
 import { toastSuccess, alertError } from '../utils/swal';
-import { db, compressImage } from '../db';
+import { db, compressImage, cacheCategories } from '../db';
 import { v4 as uuidv4 } from 'uuid';
 import SyncService from '../utils/SyncService';
 import BarcodeScanner from '../components/BarcodeScanner';
@@ -86,15 +86,19 @@ const AddProductPage = () => {
     const fetchCategories = async () => {
         try {
             // Priority: Local Dexie categories
-            const localCats = await db.categories.toArray();
+            const localCats = await db.categories.toArray().catch(() => []);
             if (localCats.length > 0) setCategories(localCats);
 
             if (navigator.onLine) {
                 const res = await api.get('/categories');
-                setCategories(res.data);
-                await db.categories.bulkPut(res.data);
+                console.log('Received Data:', res.data);
+                // Extract actual array from Laravel wrapper if present
+                const actualData = Array.isArray(res.data) ? res.data : (res.data?.data || []);
+                setCategories(actualData);
+                // Safe cache (helper handles extraction)
+                await cacheCategories(res.data).catch(e => console.warn('[Dexie] Failed to cache categories:', e));
             }
-        } catch (err) { console.error(err); }
+        } catch (err) { console.error('[API] Error fetching categories:', err); }
     };
 
     const handleImageChange = (e) => {
@@ -136,21 +140,33 @@ const AddProductPage = () => {
                 image_blob: compressedBlob // Store locally
             };
 
-            // 1. Save Locally to Dexie
-            await db.products.add(productData);
+            // 1. Save Locally to Dexie (Graceful failure)
+            try {
+                await db.products.add(productData);
+            } catch (localErr) {
+                console.error('[Dexie] Local save failed:', localErr);
+            }
             
-            // 2. Add to Sync Queue
-            await db.sync_queue.add({
-                table: 'products',
-                action: 'create',
-                data: productData,
-                timestamp: Date.now()
-            });
+            // 2. Add to Sync Queue (Graceful failure)
+            try {
+                await db.sync_queue.add({
+                    table: 'products',
+                    action: 'create',
+                    data: productData,
+                    timestamp: Date.now()
+                });
+            } catch (syncErr) {
+                console.error('[Dexie] Sync queue failed:', syncErr);
+            }
 
-            toastSuccess('تم حفظ المنتج محلياً وسيتم رفعه تلقائياً! 📦');
+            toastSuccess('تم تسجيل المنتج! جاري المزامنة... 📦');
             
             // 3. Attempt Background Sync
-            SyncService.sync();
+            try {
+                SyncService.sync();
+            } catch (serviceErr) {
+                console.error('[SyncService] Error:', serviceErr);
+            }
 
             setTimeout(() => navigate('../'), 500);
         } catch (err) {

@@ -175,12 +175,7 @@ const ProductListPage = () => {
                 {/* Table wrapper with sticky header/footer and internal scroll */}
                 <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col" style={{ height: 'calc(100vh - 200px)' }}>
 
-                    {loading ? (
-                        <div className="flex flex-col items-center justify-center py-20 text-slate-400 flex-1">
-                            <RefreshCw size={32} className="animate-spin mb-4" />
-                            <p className="font-medium">جاري تحميل المنتجات...</p>
-                        </div>
-                    ) : products.length === 0 ? (
+                    {products.length === 0 && !loading ? (
                         <div className="flex flex-col items-center justify-center py-20 text-slate-300 flex-1">
                             <Package size={64} className="mb-4 opacity-20" />
                             <p className="font-medium text-slate-400">لا توجد منتجات مطابقة</p>
@@ -192,6 +187,7 @@ const ProductListPage = () => {
                                     {/* Sticky Header */}
                                     <thead className="bg-slate-50 text-slate-600 font-bold border-b border-slate-200 sticky top-0 z-10">
                                         <tr>
+                                            <th className="px-6 py-4 w-16 text-center">الصورة</th>
                                             <th className="px-6 py-4">المنتج</th>
                                             <th className="px-6 py-4">الباركود</th>
                                             <th className="px-6 py-4 text-center">التصنيف</th>
@@ -203,6 +199,15 @@ const ProductListPage = () => {
                                     <tbody className="divide-y divide-slate-100">
                                         {products.map(p => (
                                             <tr key={p.id} className={`hover:bg-slate-50 transition-colors group ${p.stock_quantity <= 5 ? 'bg-rose-50/50' : ''}`}>
+                                                <td className="px-6 py-4 text-center">
+                                                    <div className="w-14 h-14 rounded-2xl overflow-hidden border-2 border-slate-100 shadow-sm mx-auto bg-slate-50 flex items-center justify-center group-hover:scale-105 transition-transform">
+                                                        {p.image_url ? (
+                                                            <img src={p.image_url} alt={p.name} className="w-full h-full object-cover" />
+                                                        ) : (
+                                                            <Package size={20} className="text-slate-300" />
+                                                        )}
+                                                    </div>
+                                                </td>
                                                 <td className="px-6 py-4">
                                                     <div className="flex items-center gap-3">
                                                         <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center text-blue-500 group-hover:bg-blue-600 group-hover:text-white transition-colors relative">

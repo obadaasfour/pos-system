@@ -30,7 +30,7 @@ class B2BOrderStatusEvent implements ShouldBroadcastNow
     public function broadcastOn(): array
     {
         return [
-            new PrivateChannel('store.' . $this->store_id),
+            new PrivateChannel('stores.' . $this->store_id),
         ];
     }
 

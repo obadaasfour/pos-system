@@ -171,9 +171,7 @@ const DebtLedgerPage = () => {
                         </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
-                        {loading ? (
-                            <tr><td colSpan="4" className="py-20 text-center"><Loader2 className="animate-spin mx-auto text-blue-500" /></td></tr>
-                        ) : filteredCustomers.length === 0 ? (
+                        {filteredCustomers.length === 0 && !loading ? (
                             <tr><td colSpan="4" className="py-20 text-center text-slate-400">لا يوجد عملاء مديونين</td></tr>
                         ) : filteredCustomers.map(c => (
                             <tr key={c.id} className="hover:bg-slate-50/80 transition-all">
@@ -351,7 +349,7 @@ const DebtLedgerPage = () => {
                                                 <td className="px-4 py-4 text-sm text-slate-500">{log.description || 'تسديد دفعة'}</td>
                                                 <td className="px-4 py-4 text-center">
                                                     <button 
-                                                        onClick={() => generatePaymentReceipt(log, selectedCustomer)}
+                                                        onClick={async () => await generatePaymentReceipt(log, selectedCustomer)}
                                                         className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors"
                                                         title="طباعة وصل"
                                                     >

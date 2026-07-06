@@ -9,6 +9,7 @@ import {
 import { toastSuccess, alertError } from '../utils/swal';
 import { useAuth } from '../context/AuthContext';
 import PricingModal from '../components/PricingModal';
+import echo from '../utils/echo';
 
 const formatPrice = (n) => Number(n || 0).toLocaleString('ar-SY') + ' ل.س';
 const formatUsd   = (n) => Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' $';
@@ -138,8 +139,8 @@ const InvoiceDetailsModal = ({ invoice, onClose }) => {
                                         <tr key={item.id} className="hover:bg-slate-50 transition-colors">
                                             <td className="px-6 py-4 font-bold text-slate-800">{item.product?.name || 'منتج محذوف'}</td>
                                             <td className="px-6 py-4 text-center font-black">{item.quantity}</td>
-                                            <td className="px-6 py-4 text-center font-mono text-slate-500">{formatPrice(item.unit_cost_price)}</td>
-                                            <td className="px-6 py-4 text-center font-mono font-bold">{formatPrice(item.subtotal)}</td>
+                                            <td className="px-6 py-4 text-center font-mono text-slate-500">{formatUsd(item.unit_cost_price)}</td>
+                                            <td className="px-6 py-4 text-center font-mono font-bold">{formatUsd(item.subtotal)}</td>
                                             <td className="px-6 py-4 text-center font-black text-blue-600">
                                                 {batch.sale_price ? formatPrice(batch.sale_price) : '--'}
                                             </td>
@@ -158,7 +159,7 @@ const InvoiceDetailsModal = ({ invoice, onClose }) => {
                     </div>
                     <div className="text-left">
                         <span className="text-xs font-bold text-slate-400 block mb-1">الإجمالي الكلي</span>
-                        <span className="text-xl font-black text-indigo-700">{formatPrice(invoice.total_amount)}</span>
+                        <span className="text-xl font-black text-indigo-700">{formatUsd(invoice.total_amount)}</span>
                     </div>
                 </div>
             </div>
@@ -187,14 +188,41 @@ const PurchasesPage = () => {
         supplier_id: '',
         exchange_rate: '',
         notes: '',
-        items: [{ product_id: '', name: '', quantity: 1, unit_cost_price: '', unit_cost_usd: '', unit_sale_price: '' }],
+        items: [{ product_id: '', name: '', quantity: 1, unit_cost_price: '', unit_cost_usd: '', unit_sale_price: '', planned_price_usd: '' }],
     });
 
     useEffect(() => {
         if (isAuthenticated && !authLoading) {
             fetchAll();
+
+            // Real-time listener for B2B Shipments
+            if (user?.store_id) {
+                const channel = echo.private(`stores.${user.store_id}`);
+                
+                // 1. Listen for standard status updates (for UI refresh)
+                channel.listen('.b2b.order_status_updated', (e) => {
+                    console.log('[Live Status] Order updated:', e);
+                    if (e.status === 'shipped') {
+                        SoundService.playNotification();
+                        toastSuccess(`🚚 تم الشحن: قام المورد بشحن الطلب رقم #${e.order_id}، الفاتورة جاهزة للمراجعة.`);
+                        fetchAll(); // Inject the new purchase into the table
+                    }
+                });
+
+                // 2. Listen for notifications (for the bell dot)
+                channel.notification((notification) => {
+                    console.log('[Live Notification] Purchases received:', notification);
+                    if (notification.type === 'b2b_order_status' && notification.status === 'shipped') {
+                        // Already handled by listen() above, but ensures bell reflects change
+                    }
+                });
+
+                return () => {
+                    echo.leave(`stores.${user.store_id}`);
+                };
+            }
         }
-    }, [isAuthenticated, authLoading]);
+    }, [isAuthenticated, authLoading, user?.store_id]);
 
     const fetchAll = async () => {
         setLoading(true);
@@ -207,7 +235,7 @@ const PurchasesPage = () => {
                 api.get('/settings'),
                 api.get('/purchases/incoming')
             ]);
-            
+
             const pData = Array.isArray(purRes.data.data) ? purRes.data.data : (Array.isArray(purRes.data) ? purRes.data : []);
             const invData = Array.isArray(invRes.data.data) ? invRes.data.data : (Array.isArray(invRes.data) ? invRes.data : []);
             const supData = Array.isArray(supRes.data.data) ? supRes.data.data : (Array.isArray(supRes.data) ? supRes.data : []);
@@ -218,8 +246,15 @@ const PurchasesPage = () => {
             setSuppliers(supData);
             setIncomingPurchases(iData);
             
-            if (setRes.data && setRes.data.exchange_rate) {
-                setForm(f => ({ ...f, exchange_rate: setRes.data.exchange_rate }));
+            console.log('Received Data:', setRes.data);
+            if (setRes.data) {
+                // Settings might be in setRes.data.data or setRes.data
+                const settings = setRes.data.data || setRes.data;
+                import('../db').then(db => db.cacheSettings(setRes.data));
+                
+                if (settings.exchange_rate) {
+                    setForm(f => ({ ...f, exchange_rate: settings.exchange_rate }));
+                }
             }
         } catch (err) {
             console.error(err);
@@ -229,7 +264,7 @@ const PurchasesPage = () => {
     };
 
     const addItem = () => {
-        setForm(f => ({ ...f, items: [...f.items, { product_id: '', name: '', quantity: 1, unit_cost_price: '', unit_cost_usd: '', unit_sale_price: '' }] }));
+        setForm(f => ({ ...f, items: [...f.items, { product_id: '', name: '', quantity: 1, unit_cost_price: '', unit_cost_usd: '', unit_sale_price: '', planned_price_usd: '' }] }));
     };
 
     const removeItem = (i) => setForm(f => ({ ...f, items: f.items.filter((_, idx) => idx !== i) }));
@@ -238,10 +273,16 @@ const PurchasesPage = () => {
         const newItems = [...f.items];
         newItems[i] = { ...newItems[i], [field]: val };
         
+        const rate = parseFloat(f.exchange_rate) || 0;
+
         if (field === 'unit_cost_usd') {
             const usd = parseFloat(val) || 0;
-            const rate = parseFloat(f.exchange_rate) || 0;
             newItems[i].unit_cost_price = (usd * rate).toFixed(0);
+        }
+
+        if (field === 'planned_price_usd') {
+            const usd = parseFloat(val) || 0;
+            newItems[i].unit_sale_price = (usd * rate).toFixed(0);
         }
         
         return { ...f, items: newItems };
@@ -434,7 +475,8 @@ const PurchasesPage = () => {
                                             <th className="px-4 py-4 text-center w-24">الكمية</th>
                                             <th className="px-4 py-4 text-center w-32">التكلفة ($)</th>
                                             <th className="px-4 py-4 text-center w-36">التكلفة (ل.س)</th>
-                                            <th className="px-4 py-4 text-center w-48 text-blue-600">سعر البيع المقترح (L.S)</th>
+                                            <th className="px-4 py-4 text-center w-40 text-blue-600">المبيع المخطط ($)</th>
+                                            <th className="px-4 py-4 text-center w-48 text-blue-600">سعر المبيع (L.S)</th>
                                             <th className="px-4 py-4 w-12 text-center text-rose-400"><X size={14}/></th>
                                         </tr>
                                     </thead>
@@ -465,12 +507,26 @@ const PurchasesPage = () => {
                                                 </td>
                                                 <td className="p-3">
                                                     <div className="relative">
+                                                        <DollarSign size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-emerald-400" />
+                                                        <input 
+                                                            type="number" 
+                                                            step="0.01"
+                                                            min="0"
+                                                            placeholder="0.00"
+                                                            value={item.planned_price_usd} 
+                                                            onChange={e => updateItem(idx, 'planned_price_usd', e.target.value)} 
+                                                            className="w-full text-center bg-emerald-50 border border-emerald-100 rounded-xl py-3 pr-8 pl-2 text-sm font-black text-emerald-800 outline-none focus:bg-white focus:ring-4 focus:ring-emerald-100 transition-all" 
+                                                        />
+                                                    </div>
+                                                </td>
+                                                <td className="p-3">
+                                                    <div className="relative">
                                                         <Tag size={14} className="absolute right-3 top-1/2 -translate-y-1/2 text-blue-400" />
                                                         <input 
                                                             type="number" 
                                                             min="1" 
                                                             required 
-                                                            placeholder="السعر المقترح..."
+                                                            placeholder="سعر المبيع..."
                                                             value={item.unit_sale_price} 
                                                             onChange={e => updateItem(idx, 'unit_sale_price', e.target.value)} 
                                                             className="w-full text-center bg-blue-50 border border-blue-200 rounded-xl py-3 pr-8 pl-2 text-sm font-black text-blue-800 outline-none focus:bg-white focus:ring-4 focus:ring-blue-100 transition-all placeholder:text-blue-300" 
@@ -550,7 +606,7 @@ const PurchasesPage = () => {
                                                 <td className="px-8 py-5">
                                                     <span className="bg-blue-50 text-blue-600 px-3 py-1 rounded-full text-[10px] font-black uppercase">{p.items?.length || 0} صنف</span>
                                                 </td>
-                                                <td className="px-8 py-5 font-black text-emerald-600 text-base">{formatPrice(p.total_amount)}</td>
+                                                <td className="px-8 py-5 font-black text-emerald-600 text-base">{formatUsd(p.total_amount)}</td>
                                                 <td className="px-8 py-5">
                                                     <span className={`px-2.5 py-1 rounded-xl text-[9px] font-black border tracking-wider ${p.status === 'received' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-amber-50 text-amber-600 border-amber-100'}`}>
                                                         {p.status === 'received' ? 'تم الاستلام' : p.status}
@@ -573,7 +629,7 @@ const PurchasesPage = () => {
                                                 </td>
                                                 <td className="px-8 py-5 font-black text-slate-700">{p.supplier?.name || '--'}</td>
                                                 <td className="px-8 py-5 font-bold">{p.items?.length || 0} صنف وارد</td>
-                                                <td className="px-8 py-5 font-black text-indigo-600">{formatPrice(p.total_amount)}</td>
+                                                <td className="px-8 py-5 font-black text-indigo-600">{formatUsd(p.total_amount)}</td>
                                                 <td className="px-8 py-5">
                                                     <span className="px-2.5 py-1 rounded-xl text-[9px] font-black border tracking-wider bg-rose-50 text-rose-600 border-rose-100 animate-pulse">
                                                         {p.status === 'pending_approval' ? 'بانتظار الموافقة' : 'بانتظار التأكيد'}

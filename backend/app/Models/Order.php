@@ -11,7 +11,7 @@ class Order extends Model
     use HasFactory, BelongsToStore;
 
     protected $fillable = [
-        'store_id', 'customer_id', 'user_id', 'uuid', 'total_amount', 'purchase_price', 'payment_method', 'status', 'invoice_number'
+        'store_id', 'customer_id', 'user_id', 'uuid', 'total_amount', 'purchase_price', 'payment_method', 'status', 'invoice_number', 'exchange_rate'
     ];
 
     protected static function boot()

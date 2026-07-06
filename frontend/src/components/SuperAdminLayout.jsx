@@ -28,6 +28,11 @@ const SUPER_ADMIN_NAV = [
         to: '/super-admin/activity-logs',
     },
     {
+        label: 'إدارة الموردين',
+        icon: Truck,
+        to: '/super-admin/suppliers',
+    },
+    {
         label: 'إعدادات النظام',
         icon: Settings,
         to: '/super-admin/settings',
@@ -55,7 +60,8 @@ const SuperAdminLayout = () => {
     const handleLogout = async () => {
         try { await api.post('/logout'); } catch (_) { }
         onLogout();
-        navigate('/super-admin/login', { replace: true });
+        // Redirect to unified login page
+        navigate('/login', { replace: true });
     };
 
     const handleStoreSwitch = async (storeId) => {
@@ -90,11 +96,11 @@ const SuperAdminLayout = () => {
     }
 
     return (
-        <div className="flex h-screen bg-slate-100 font-sans overflow-hidden" dir="rtl">
+        <div className="flex h-screen bg-slate-100 font-sans overflow-hidden mt-0" dir="rtl">
             <Toaster />
 
             {/* ── SIDEBAR ─────────────────────────── */}
-            <aside className={`flex flex-col bg-slate-900 text-white transition-all duration-300 shrink-0 shadow-2xl z-20 ${collapsed ? 'w-16' : 'w-64'}`}>
+            <aside className={`flex flex-col h-full bg-slate-900 text-white transition-all duration-300 shrink-0 shadow-2xl z-20 ${collapsed ? 'w-16' : 'w-64'}`}>
                 {/* Brand */}
                 <div className={`flex items-center gap-3 px-4 py-5 border-b border-white/5 ${collapsed ? 'justify-center' : ''}`}>
                     <div className="w-9 h-9 bg-gradient-to-br from-amber-500 to-orange-600 rounded-xl flex items-center justify-center shrink-0 shadow-lg">
@@ -134,7 +140,7 @@ const SuperAdminLayout = () => {
                 </div>
 
                 {/* Nav items */}
-                <nav className="flex-1 py-4 px-2 space-y-1 overflow-y-auto scrollbar-none">
+                <nav className="flex-1 py-4 px-2 space-y-1 overflow-y-auto elegant-scrollbar">
                     {SUPER_ADMIN_NAV.map((item, idx) => (
                         <NavLink
                             key={idx}

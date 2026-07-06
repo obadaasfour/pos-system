@@ -21,14 +21,7 @@ return new class extends Migration
             $table->timestamps();
         });
 
-        // Insert a default "Main Store"
-        DB::table('stores')->insert([
-            'name' => 'المتجر الرئيسي',
-            'slug' => 'main-store',
-            'is_active' => true,
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+
     }
 
     public function down(): void

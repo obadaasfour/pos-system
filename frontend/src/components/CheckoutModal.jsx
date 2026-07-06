@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { toastSuccess, alertError, toastWarning } from '../utils/swal';
 
-const CheckoutModal = ({ isOpen, onClose, onConfirm, total, loading, initialCustomer }) => {
+const CheckoutModal = ({ isOpen, onClose, onConfirm, total, totalUsd, loading, initialCustomer }) => {
     const [paymentMethod, setPaymentMethod] = useState('cash'); // cash, credit
     const [customers, setCustomers] = useState([]);
     const [selectedCustomer, setSelectedCustomer] = useState(initialCustomer || null);
@@ -138,7 +138,14 @@ const CheckoutModal = ({ isOpen, onClose, onConfirm, total, loading, initialCust
                     <div className="bg-slate-50 rounded-2xl p-5 border border-slate-100 flex justify-between items-center shrink-0">
                         <div>
                             <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">المبلغ الإجمالي</p>
-                            <p className="text-2xl font-black text-slate-800 mt-0.5">{formatPrice(total)}</p>
+                            <div className="flex flex-col">
+                                <p className="text-2xl font-black text-slate-800 mt-0.5">{formatPrice(total)}</p>
+                                {totalUsd > 0 && (
+                                    <p className="text-xs font-bold text-emerald-600 mt-1">
+                                        (${totalUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} مخطط)
+                                    </p>
+                                )}
+                            </div>
                         </div>
                         <div className="w-10 h-10 bg-emerald-100 text-emerald-600 rounded-xl flex items-center justify-center">
                             <CheckCircle size={22} />

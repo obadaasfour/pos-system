@@ -46,6 +46,7 @@ class ProductController extends Controller
             'barcode'        => 'nullable|string|max:255',
             'price'          => 'nullable|numeric|min:0',
             'cost_price'     => 'nullable|numeric|min:0',
+            'planned_price_usd' => 'nullable|numeric|min:0',
             'stock_quantity' => 'nullable|integer|min:0',
             'category_id'    => 'nullable', // Resolve numeric or UUID
             'description'    => 'nullable|string',
@@ -92,6 +93,7 @@ class ProductController extends Controller
                     'remaining_qty'     => $product->stock_quantity,
                     'cost_local'        => $product->cost_price ?? 0,
                     'exchange_rate'     => 1,
+                    'planned_price_usd' => $product->planned_price_usd ?? 0,
                 ]);
             }
 
@@ -153,6 +155,7 @@ class ProductController extends Controller
             'barcode'        => ['nullable', 'string', 'max:255', Rule::unique('products')->ignore($product->id)],
             'price'          => 'nullable|numeric|min:0',
             'cost_price'     => 'nullable|numeric|min:0',
+            'planned_price_usd' => 'nullable|numeric|min:0',
             'stock_quantity' => 'nullable|integer|min:0',
             'category_id'    => 'nullable|exists:categories,id',
             'description'    => 'nullable|string',

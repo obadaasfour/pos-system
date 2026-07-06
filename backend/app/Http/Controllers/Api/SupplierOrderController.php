@@ -78,7 +78,7 @@ class SupplierOrderController extends Controller
             ->where('user_id', $user->id)
             ->firstOrFail();
 
-        $orders = SupplierOrder::with(['product', 'store'])
+        $orders = SupplierOrder::with(['product', 'store', 'suggestion'])
             ->where('supplier_id', $supplier->id)
             ->latest()
             ->get();
@@ -97,14 +97,20 @@ class SupplierOrderController extends Controller
 
         $order = SupplierOrder::with(['product' => function($q) {
             $q->withoutGlobalScopes();
-        }, 'store'])->findOrFail($id);
+        }, 'store', 'suggestion'])->findOrFail($id);
 
         $oldStatus = $order->status;
         $order->status = $request->status;
+        
+        if ($request->status === 'shipped') {
+            $order->shipped_at = now();
+            $order->tracking_number = $request->tracking_number ?? 'B2B-' . strtoupper(uniqid());
+        }
+        
         $order->save();
 
         // Use safe variables and null-safe operators
-        $productName = $order->product?->name ?? 'منتج غير محدد';
+        $productName = $order->product?->name ?? $order->suggestion?->name ?? 'منتج غير محدد';
         $storeName = $order->store?->name ?? 'متجر غير محدد';
 
         // 1. Send Notifications to Store Admins
@@ -119,7 +125,7 @@ class SupplierOrderController extends Controller
             if ($request->status === 'processing') {
                 $message = "قام المورد بتحديث حالة طلبك للمنتج ({$productName}) إلى: جاري التجهيز 📦";
             } elseif ($request->status === 'shipped') {
-                $message = "تم شحن طلبك للمنتج ({$productName})! 🚀 وصلت فاتورة جديدة للمراجعة.";
+                $message = "قام المورد بشحن طلبك للمنتج ({$productName})، توجد فاتورة مشتريات جديدة معلقة بانتظار مراجعتك لاعتماد المخزن. 🚀";
                 $url = "/purchases";
             }
 
@@ -131,6 +137,19 @@ class SupplierOrderController extends Controller
                     $message,
                     $url
                 ));
+
+                // Also broadcast a custom event for easier frontend data refresh (Zero-Reload Live Sync)
+                try {
+                    broadcast(new \App\Events\B2BOrderStatusEvent(
+                        $order->id,
+                        $productName,
+                        $request->status,
+                        $message,
+                        $order->store_id
+                    ))->toOthers();
+                } catch (\Exception $e) {
+                    \Log::error("B2B Status Broadcast Error: " . $e->getMessage());
+                }
             }
         }
 
@@ -138,11 +157,16 @@ class SupplierOrderController extends Controller
         if ($request->status === 'shipped' && $oldStatus !== 'shipped') {
             $exchangeRate = \App\Models\Setting::get('exchange_rate', 1);
             
+            // Get a store admin to link the purchase to
+            $storeAdmin = \App\Models\User::where('store_id', $order->store_id)
+                ->where('role', \App\Models\User::ROLE_ADMIN)
+                ->first();
+
             $purchase = \App\Models\Purchase::create([
                 'store_id'          => $order->store_id,
                 'supplier_id'       => $order->supplier_id,
-                'user_id'           => $request->user()->id,
-                'total_amount'      => $order->quantity * ($order->price_at_order_syr ?? $order->product?->price ?? 0),
+                'user_id'           => $storeAdmin ? $storeAdmin->id : $request->user()->id,
+                'total_amount'      => $order->quantity * ($order->price_at_order_usd ?? $order->suggestion?->price_usd ?? 0),
                 'notes'             => "طلب B2B تلقائي رقم #{$order->id} لمتجر {$storeName}",
                 'exchange_rate'     => $exchangeRate,
                 'invoice_number'    => 'B2B-' . $order->id . '-' . time(),
@@ -150,12 +174,14 @@ class SupplierOrderController extends Controller
             ]);
 
             \App\Models\PurchaseItem::create([
-                'store_id'         => $order->store_id,
-                'purchase_id'      => $purchase->id,
-                'product_id'       => $order->product_id,
-                'quantity'         => $order->quantity,
-                'unit_cost_price'  => $order->price_at_order_syr ?? $order->product?->price ?? 0,
-                'subtotal'         => $order->quantity * ($order->price_at_order_syr ?? $order->product?->price ?? 0),
+                'store_id'          => $order->store_id,
+                'purchase_id'       => $purchase->id,
+                'product_id'        => $order->product_id, // Could be null
+                'temp_product_name' => $order->product_id ? null : $productName,
+                'temp_image_path'   => $order->product_id ? $order->product?->image_path : ($order->suggestion?->image_path ?? null),
+                'quantity'          => $order->quantity,
+                'unit_cost_price'   => $order->price_at_order_usd ?? $order->suggestion?->price_usd ?? 0,
+                'subtotal'          => $order->quantity * ($order->price_at_order_usd ?? $order->suggestion?->price_usd ?? 0),
             ]);
         }
 
