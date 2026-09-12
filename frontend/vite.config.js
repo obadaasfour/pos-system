@@ -5,13 +5,12 @@ import { VitePWA } from 'vite-plugin-pwa'
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  base: './', // ✅ مضاف لحل مشكلة الـ 404 وتوجيه المسارات في GitHub Pages
+  base: '/pos-frontend/', 
   plugins: [
     tailwindcss(),
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      // ✅ CRITICAL: Disable Service Worker in dev to prevent caching white screen
       devOptions: {
         enabled: false,
       },
@@ -45,8 +44,7 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
         maximumFileSizeToCacheInBytes: 4000000,
-        // ✅ تم تعديلها لتتوافق مع المسار النسبي للاستضافة المباشرة
-        navigateFallback: 'index.html',
+        // ✅ تم إزالة إجبار الـ navigateFallback لكي لا يعمل كاش خاطئ على الروابط الفرعية
         runtimeCaching: [
           {
             urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
@@ -66,7 +64,7 @@ export default defineConfig({
               cacheName: 'images-cache',
               expiration: {
                 maxEntries: 50,
-                maxAgeSeconds: 60 * 60 * 24 * 30 // 30 Days
+                maxAgeSeconds: 60 * 60 * 24 * 30 
               }
             }
           }
@@ -86,7 +84,7 @@ export default defineConfig({
     },
     proxy: {
       '/api': {
-        target: 'http://pos-nginx-backend:8000', // Update target to use docker service name
+        target: 'http://pos-nginx-backend:8000',
         changeOrigin: true,
         secure: false,
       }
