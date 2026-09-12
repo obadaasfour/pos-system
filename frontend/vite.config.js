@@ -5,7 +5,7 @@ import { VitePWA } from 'vite-plugin-pwa'
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  base: '/pos-frontend/', 
+  base: '/', 
   plugins: [
     tailwindcss(),
     react(),
@@ -78,9 +78,6 @@ export default defineConfig({
     https: false,
     watch: {
       usePolling: true,
-    },
-    hmr: {
-      host: 'asus-lp.local',
     },
     proxy: {
       '/api': {
