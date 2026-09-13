@@ -96,11 +96,14 @@ const StoreLayout = () => {
                 return;
             }
 
-            // Check Cache First
+            // ✅ Check Cache First — skip loader entirely if already validated
             if (validSlugsCache.has(slug)) {
                 setIsValidSlug(true);
                 return;
             }
+
+            // Only show loader on the very first check (when null)
+            setIsValidSlug(null);
 
             try {
                 // Verify slug via backend
@@ -117,7 +120,6 @@ const StoreLayout = () => {
             }
         };
 
-        setIsValidSlug(null);
         verifySlug();
     }, [slug]);
 

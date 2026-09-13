@@ -72,6 +72,25 @@ export default defineConfig({
       }
     })
   ],
+  build: {
+    // ─── Code Splitting for faster navigation ───────────────────
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Core React libraries - cached long-term
+          'vendor-react': ['react', 'react-dom', 'react-router-dom'],
+          // UI & animation libraries
+          'vendor-ui': ['framer-motion', 'lucide-react'],
+          // Form/notification utilities
+          'vendor-utils': ['axios', 'sweetalert2', 'react-hot-toast'],
+          // Charting (heavy - separate chunk)
+          'vendor-charts': ['recharts'],
+        }
+      }
+    },
+    // Increase chunk size warning limit
+    chunkSizeWarningLimit: 1000,
+  },
   server: {
     host: '0.0.0.0',
     port: 5173,

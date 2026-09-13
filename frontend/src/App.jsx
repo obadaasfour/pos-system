@@ -149,7 +149,7 @@ function App() {
 
     return (
         <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-            <Suspense fallback={<Loader />}>
+            <Suspense fallback={<PageSpinner />}>
                 <Routes>
                     <Route path="/" element={<GlobalRedirectHandler />} />
                     <Route path="/login" element={!isAuthenticated ? <LoginPage onLogin={onLogin} /> : <GlobalRedirectHandler />} />
@@ -248,6 +248,20 @@ const Loader = () => (
             <div className="absolute inset-0 border-4 border-t-blue-600 rounded-full animate-spin"></div>
             <div className="absolute inset-0 blur-lg bg-blue-500/20 rounded-full animate-pulse"></div>
         </div>
+    </div>
+);
+
+// Lightweight page-transition spinner — does NOT replace full screen
+const PageSpinner = () => (
+    <div className="fixed top-0 left-0 right-0 z-[9999]">
+        <div className="h-0.5 bg-blue-600 animate-pulse w-full" style={{ animation: 'pageLoad 0.8s ease-in-out infinite' }} />
+        <style>{`
+            @keyframes pageLoad {
+                0%   { width: 0%; opacity: 1; }
+                80%  { width: 90%; opacity: 1; }
+                100% { width: 100%; opacity: 0; }
+            }
+        `}</style>
     </div>
 );
 
