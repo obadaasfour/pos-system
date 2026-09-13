@@ -147,18 +147,34 @@ const BarcodeScanner = ({ onScan, onClose, isInline = false }) => {
 
                         {/* Error Overlay */}
                         {error && (
-                            <div className="absolute inset-0 z-30 bg-rose-50 p-6 flex flex-col items-center justify-center gap-4 text-center">
-                                <AlertCircle className="text-rose-500" size={48} />
+                            <div className="absolute inset-0 z-30 bg-rose-50 p-6 flex flex-col items-center justify-center gap-3 text-center overflow-y-auto">
+                                <AlertCircle className="text-rose-500 shrink-0" size={40} />
                                 <div>
-                                    <p className="text-sm font-black text-rose-900 mb-1">صلاحية الكاميرا مطلوبة</p>
-                                    <p className="text-xs font-bold text-rose-600 leading-relaxed">{error}</p>
+                                    <p className="text-sm font-black text-rose-900 mb-2">تعذر تشغيل الكاميرا</p>
+                                    
+                                    {error.includes("Insecure origins") ? (
+                                        <div className="text-right text-[11px] font-bold text-rose-700 bg-rose-100/50 p-3 rounded-xl border border-rose-200">
+                                            <p className="mb-2 text-xs font-black text-rose-900">المتصفح يمنع الكاميرا لأن الموقع غير محمي (HTTP).</p>
+                                            <p className="mb-1">لحل المشكلة مؤقتاً في متصفح كروم:</p>
+                                            <ol className="list-decimal list-inside space-y-1 mt-2 text-rose-800">
+                                                <li>انسخ الرابط التالي وافتحه في تبويب جديد: <br/><code className="bg-white px-1 py-0.5 rounded text-rose-900 select-all block mt-1" dir="ltr">chrome://flags/#unsafely-treat-insecure-origin-as-secure</code></li>
+                                                <li>فعّل الخيار (Enable)</li>
+                                                <li>أضف عنوان الموقع الحالي: <br/><code className="bg-white px-1 py-0.5 rounded text-rose-900 select-all block mt-1" dir="ltr">{window.location.origin}</code></li>
+                                                <li>اضغط Relaunch أسفل الشاشة.</li>
+                                            </ol>
+                                        </div>
+                                    ) : (
+                                        <p className="text-xs font-bold text-rose-600 leading-relaxed">{error}</p>
+                                    )}
                                 </div>
-                                <button
-                                    onClick={() => window.location.reload()}
-                                    className="px-6 py-2 bg-rose-600 text-white rounded-xl text-xs font-black shadow-lg shadow-rose-500/30"
-                                >
-                                    إعادة المحاولة
-                                </button>
+                                {!error.includes("Insecure origins") && (
+                                    <button
+                                        onClick={() => window.location.reload()}
+                                        className="px-6 py-2 mt-2 bg-rose-600 text-white rounded-xl text-xs font-black shadow-lg shadow-rose-500/30"
+                                    >
+                                        إعادة المحاولة
+                                    </button>
+                                )}
                             </div>
                         )}
 
