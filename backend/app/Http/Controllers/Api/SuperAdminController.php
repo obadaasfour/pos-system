@@ -157,9 +157,19 @@ class SuperAdminController extends Controller
      */
     public function destroy(Request $request, $id)
     {
-        $store = Store::findOrFail($id);
-        $this->storeService->hardDeleteStore($store);
+        try {
+            $store = Store::findOrFail($id);
+            $this->storeService->hardDeleteStore($store);
 
-        return response()->json(['message' => 'تم حذف الفرع وكافة بياناته بنجاح']);
+            return response()->json(['message' => 'تم حذف الفرع وكافة بياناته بنجاح']);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error("Store Deletion Failed for ID {$id}: " . $e->getMessage(), [
+                'exception' => $e
+            ]);
+            return response()->json([
+                'message' => 'فشل حذف المتجر: ' . $e->getMessage(),
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 }

@@ -41,14 +41,16 @@ class StoreController extends Controller
             'store_id' => 'required|exists:stores,id',
         ]);
 
+        $store = Store::findOrFail($request->store_id);
+
         $user = auth()->user();
-        $user->store_id = $request->store_id;
+        $user->store_id = $store->id;
         $user->save();
 
         return response()->json([
-            'message' => 'تم الانتقال إلى المتجر: ' . $user->store->name,
+            'message' => 'تم الانتقال إلى المتجر: ' . $store->name,
             'user' => $user->load('store'),
-            'slug' => $user->store->slug
+            'slug' => $store->slug
         ]);
     }
 }
