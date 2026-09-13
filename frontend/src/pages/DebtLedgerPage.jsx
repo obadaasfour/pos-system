@@ -2,10 +2,11 @@ import React, { useState, useEffect } from 'react';
 import api from '../api';
 import { 
     Users, Search, Wallet, Plus, CreditCard, 
-    History, Phone, MapPin, Loader2, CheckCircle, X, Printer, Calendar
+    History, Phone, MapPin, Loader2, CheckCircle, X, Printer, Calendar,
+    Pencil, Trash2
 } from 'lucide-react';
 import { generatePaymentReceipt } from '../utils/invoiceGenerator';
-import { toastSuccess, alertError } from '../utils/swal';
+import { toastSuccess, alertError, confirmDialog } from '../utils/swal';
 
 const formatPrice = (n) => Number(n || 0).toLocaleString('ar-SY') + ' ل.س';
 
@@ -20,6 +21,9 @@ const DebtLedgerPage = () => {
     const [showAddCustomer, setShowAddCustomer] = useState(false);
     const [newCustomer, setNewCustomer] = useState({ name: '', phone: '', address: '' });
     
+    const [showEditCustomer, setShowEditCustomer] = useState(false);
+    const [editingCustomer, setEditingCustomer] = useState(null);
+
     const [showHistoryModal, setShowHistoryModal] = useState(false);
     const [paymentHistory, setPaymentHistory] = useState([]);
     const [historyLoading, setHistoryLoading] = useState(false);
@@ -96,6 +100,46 @@ const DebtLedgerPage = () => {
             alertError('خطأ في الإضافة', 'فشل إضافة العميل، يرجى التحقق من البيانات');
         } finally {
             setIsProcessing(false);
+        }
+    };
+
+    const handleEditCustomer = async (e) => {
+        e.preventDefault();
+        if (!editingCustomer?.id) return;
+        setIsProcessing(true);
+        try {
+            await api.put(`/customers/${editingCustomer.id}`, {
+                name: editingCustomer.name,
+                phone: editingCustomer.phone,
+                address: editingCustomer.address,
+            });
+            setShowEditCustomer(false);
+            setEditingCustomer(null);
+            fetchCustomers();
+            toastSuccess('تم تعديل بيانات العميل بنجاح ✏️');
+        } catch (err) {
+            console.error(err);
+            alertError('خطأ في التعديل', err.response?.data?.message || 'فشل تعديل بيانات العميل');
+        } finally {
+            setIsProcessing(false);
+        }
+    };
+
+    const handleDeleteCustomer = async (customer) => {
+        const result = await confirmDialog(
+            'حذف العميل',
+            `هل أنت متأكد من حذف العميل "${customer.name}"؟`,
+            'warning'
+        );
+        if (!result.isConfirmed) return;
+
+        try {
+            await api.delete(`/customers/${customer.id}`);
+            fetchCustomers();
+            toastSuccess('تم حذف العميل بنجاح 🗑️');
+        } catch (err) {
+            console.error(err);
+            alertError('فشل الحذف', err.response?.data?.message || 'تعذر حذف العميل، قد يكون لديه ديون أو فواتير مرتبطة.');
         }
     };
 
@@ -199,17 +243,36 @@ const DebtLedgerPage = () => {
                                         <button 
                                             disabled={Number(c.total_debt) <= 0}
                                             onClick={() => { setSelectedCustomer(c); setShowModal(true); }}
-                                            className="bg-emerald-600 text-white px-4 py-2 rounded-xl font-bold hover:bg-emerald-700 disabled:opacity-30 transition-all shadow-sm flex items-center gap-2"
+                                            className="bg-emerald-600 text-white px-3.5 py-2 rounded-xl font-bold hover:bg-emerald-700 disabled:opacity-30 transition-all shadow-sm flex items-center gap-1.5 text-xs"
+                                            title="تسديد الدين"
                                         >
-                                            <Wallet size={16} />
+                                            <Wallet size={15} />
                                             تسديد
                                         </button>
                                         <button 
                                             onClick={() => fetchPaymentHistory(c)}
-                                            className="bg-slate-100 text-slate-600 px-4 py-2 rounded-xl font-bold hover:bg-slate-200 transition-all flex items-center gap-2"
+                                            className="bg-slate-100 text-slate-600 px-3.5 py-2 rounded-xl font-bold hover:bg-slate-200 transition-all flex items-center gap-1.5 text-xs"
+                                            title="سجل الدفعات"
                                         >
-                                            <History size={16} />
+                                            <History size={15} />
                                             السجل
+                                        </button>
+                                        <button 
+                                            onClick={() => {
+                                                setEditingCustomer({ id: c.id, name: c.name, phone: c.phone || '', address: c.address || '' });
+                                                setShowEditCustomer(true);
+                                            }}
+                                            className="p-2 bg-blue-50 text-blue-600 rounded-xl hover:bg-blue-100 hover:text-blue-700 transition-all shadow-sm"
+                                            title="تعديل بيانات العميل"
+                                        >
+                                            <Pencil size={15} />
+                                        </button>
+                                        <button 
+                                            onClick={() => handleDeleteCustomer(c)}
+                                            className="p-2 bg-rose-50 text-rose-600 rounded-xl hover:bg-rose-100 hover:text-rose-700 transition-all shadow-sm"
+                                            title="حذف العميل"
+                                        >
+                                            <Trash2 size={15} />
                                         </button>
                                     </div>
                                 </td>
@@ -307,6 +370,54 @@ const DebtLedgerPage = () => {
                                 className="w-full bg-blue-600 text-white font-black py-4 rounded-2xl hover:bg-blue-700 transition-all mt-4"
                             >
                                 {isProcessing ? <Loader2 className="animate-spin mx-auto" /> : "إضافة وحفظ"}
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            )}
+
+            {/* Edit Customer Modal */}
+            {showEditCustomer && editingCustomer && (
+                <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm flex items-center justify-center p-4 z-[100]">
+                    <div className="bg-white rounded-3xl w-full max-w-md p-8 shadow-2xl animate-in zoom-in-95 duration-200">
+                        <div className="flex justify-between items-center mb-6">
+                            <h2 className="text-2xl font-black text-slate-800">تعديل بيانات العميل</h2>
+                            <button onClick={() => { setShowEditCustomer(false); setEditingCustomer(null); }}><X className="text-slate-400" /></button>
+                        </div>
+                        <form onSubmit={handleEditCustomer} className="space-y-4">
+                            <div>
+                                <label className="block text-sm font-bold text-slate-600 mb-1">اسم العميل</label>
+                                <input 
+                                    type="text" required 
+                                    className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl p-3.5 outline-none focus:border-blue-500 font-bold"
+                                    value={editingCustomer.name}
+                                    onChange={(e) => setEditingCustomer({...editingCustomer, name: e.target.value})}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-slate-600 mb-1">رقم الهاتف</label>
+                                <input 
+                                    type="text"
+                                    className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl p-3.5 outline-none focus:border-blue-500 font-bold"
+                                    value={editingCustomer.phone}
+                                    onChange={(e) => setEditingCustomer({...editingCustomer, phone: e.target.value})}
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-slate-600 mb-1">العنوان</label>
+                                <textarea 
+                                    className="w-full bg-slate-50 border-2 border-slate-100 rounded-2xl p-3.5 outline-none focus:border-blue-500 font-medium"
+                                    rows="2"
+                                    value={editingCustomer.address}
+                                    onChange={(e) => setEditingCustomer({...editingCustomer, address: e.target.value})}
+                                ></textarea>
+                            </div>
+                            <button 
+                                type="submit"
+                                disabled={isProcessing}
+                                className="w-full bg-blue-600 text-white font-black py-4 rounded-2xl hover:bg-blue-700 transition-all mt-4"
+                            >
+                                {isProcessing ? <Loader2 className="animate-spin mx-auto" /> : "حفظ التعديلات"}
                             </button>
                         </form>
                     </div>
