@@ -14,16 +14,14 @@ const api = axios.create({
 
 // Add a request interceptor to include the token and Store-ID
 api.interceptors.request.use((config) => {
-    // Debug: Monitor token presence as requested
     const posToken = localStorage.getItem('pos_token');
     const legacyToken = localStorage.getItem('token');
-    let slug = localStorage.getItem('pos_slug');
     
     // Robust Global Routing Detection
     const globalPaths = [
         'super-admin',
         'validate-slug',
-        'supplier/', // Matches /supplier/dashboard, /supplier/orders but NOT /suppliers
+        'supplier/',
         'suppliers',
         'settings',
         'broadcasting/auth',
@@ -34,14 +32,25 @@ api.interceptors.request.use((config) => {
     const isGlobal = globalPaths.some(path => config.url.includes(path)) || 
                      config.url === '/login' || config.url === 'login'; 
 
-    if (!slug && !isGlobal) {
-        // Fallback: try to extract slug from window location if we are in a tenant route
-        const match = window.location.pathname.match(/^\/([^/]+)/);
-        if (match && match[1]) {
-            const potentialSlug = match[1];
-            if (!globalPaths.some(path => potentialSlug.includes(path.replace('/', ''))) && potentialSlug !== 'login') {
-                slug = potentialSlug;
+    // ─── Slug Resolution: URL first, localStorage as fallback ────────────
+    // Always prefer the current URL slug to avoid cross-store contamination
+    let slug = null;
+
+    if (!isGlobal) {
+        // 1. Extract slug from current URL path (most reliable)
+        const urlMatch = window.location.pathname.match(/^\/([^/]+)/);
+        if (urlMatch && urlMatch[1]) {
+            const urlSlug = urlMatch[1];
+            const isReserved = globalPaths.some(p => urlSlug.includes(p.replace('/', ''))) || 
+                               urlSlug === 'login' || urlSlug === 'register';
+            if (!isReserved) {
+                slug = urlSlug;
             }
+        }
+
+        // 2. Fallback to localStorage only if URL gave nothing
+        if (!slug) {
+            slug = localStorage.getItem('pos_slug');
         }
     }
 
@@ -49,7 +58,7 @@ api.interceptors.request.use((config) => {
         console.warn(`[API] Found legacy 'token' in localStorage: ${legacyToken.substring(0, 10)}...`);
     }
 
-    console.log(`[API Request] ${config.method?.toUpperCase()} ${config.url} | Token Found: ${!!posToken} | Slug: ${slug || 'None'}`);
+    console.log(`[API Request] ${config.method?.toUpperCase()} ${config.url} | Token: ${!!posToken} | Slug: ${slug || 'None (Global)'}`);
 
     // Always attach token if available
     if (posToken) {
@@ -58,7 +67,7 @@ api.interceptors.request.use((config) => {
 
     if (!isGlobal && slug) {
         const cleanUrl = config.url.startsWith('/') ? config.url.substring(1) : config.url;
-        // Don't prepend if it's already there
+        // Don't prepend if it's already there (check against the ACTUAL current slug)
         if (!cleanUrl.startsWith(`${slug}/`)) {
             config.url = `/${slug}/${cleanUrl}`;
         }
@@ -71,6 +80,7 @@ api.interceptors.request.use((config) => {
 }, (error) => {
     return Promise.reject(error);
 });
+
 
 api.interceptors.response.use(
     (response) => response,
