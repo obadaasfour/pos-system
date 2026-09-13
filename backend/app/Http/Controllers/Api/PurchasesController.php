@@ -8,6 +8,7 @@ use App\Models\PurchaseItem;
 use App\Models\Product;
 use App\Models\Setting;
 use App\Models\ProductBatch;
+use App\Models\TenantContext;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -270,8 +271,198 @@ class PurchasesController extends Controller
         });
     }
 
-    public function show($id)
+    public function show($slug, $id = null)
     {
-        return Purchase::with(['supplier', 'user', 'items.product' => function($q) { $q->withTrashed()->withoutGlobalScopes(); }, 'batches'])->findOrFail($id);
+        $purchaseId = $id ?: $slug;
+        return Purchase::with(['supplier', 'user', 'items.product' => function($q) { $q->withTrashed()->withoutGlobalScopes(); }, 'batches'])->findOrFail($purchaseId);
+    }
+
+    /**
+     * تعديل فاتورة شراء (للأدمن والسوبر أدمن)
+     */
+    public function update(Request $request, $slug, $id = null)
+    {
+        if (! $request->user() || ! $request->user()->isAdmin()) {
+            return response()->json(['message' => 'غير مصرح لك بتعديل فواتير المشتريات.'], 403);
+        }
+
+        $purchaseId = $id ?: $slug;
+
+        $request->validate([
+            'supplier_id'              => 'nullable|exists:suppliers,id',
+            'notes'                    => 'nullable|string',
+            'exchange_rate'            => 'required|numeric|min:1',
+            'items'                    => 'required|array|min:1',
+            'items.*.product_id'       => 'required|exists:products,id',
+            'items.*.quantity'         => 'required|integer|min:1',
+            'items.*.unit_cost_usd'    => 'required|numeric|min:0',
+            'items.*.unit_sale_price'  => 'required|numeric|min:0',
+            'items.*.planned_price_usd'=> 'nullable|numeric|min:0',
+        ]);
+
+        return DB::transaction(function () use ($request, $purchaseId) {
+            $purchase = Purchase::with(['items', 'batches'])->findOrFail($purchaseId);
+            $storeId = $purchase->store_id;
+            TenantContext::setStoreId($storeId);
+            $exchangeRate = $request->exchange_rate;
+
+            $wasFinalized = in_array($purchase->status, ['received', 'completed', 'paid']);
+
+            // 1. إذا كانت الفاتورة مستلمة مسبقاً، نعكس أثر العناصر القديمة على المخزون والخزينة
+            if ($wasFinalized) {
+                foreach ($purchase->items as $oldItem) {
+                    if ($oldItem->product_id) {
+                        $oldProduct = Product::withTrashed()->find($oldItem->product_id);
+                        if ($oldProduct) {
+                            $oldProduct->decrement('stock_quantity', min($oldProduct->stock_quantity, $oldItem->quantity));
+                        }
+                    }
+                    if ($oldItem->batch_id) {
+                        $oldBatch = ProductBatch::find($oldItem->batch_id);
+                        if ($oldBatch) {
+                            $oldBatch->decrement('remaining_qty', min($oldBatch->remaining_qty, $oldItem->quantity));
+                            $oldBatch->decrement('original_quantity', min($oldBatch->original_quantity, $oldItem->quantity));
+                        }
+                    }
+                }
+                // إعادة المبلغ القديم للخزينة مؤقتاً
+                Setting::updateCashBalance(round((float)$purchase->total_amount, 2));
+            }
+
+            // 2. حذف الباتشات القديمة المنشأة بواسطة هذه الفاتورة حصراً وعناصر الفاتورة
+            ProductBatch::where('purchase_id', $purchase->id)->delete();
+            $purchase->items()->delete();
+
+            // 3. تطبيق العناصر الجديدة
+            $totalAmount   = 0;
+            $purchaseItems = [];
+
+            foreach ($request->items as $item) {
+                $product   = Product::lockForUpdate()->findOrFail($item['product_id']);
+                $costLocal = round($item['unit_cost_usd'] * $exchangeRate, 2);
+                $subtotal  = round($costLocal * $item['quantity'], 2);
+                $totalAmount += $subtotal;
+
+                $batchId = null;
+                if ($wasFinalized) {
+                    $batch = ProductBatch::create([
+                        'store_id'          => $storeId,
+                        'product_id'        => $product->id,
+                        'purchase_id'       => $purchase->id,
+                        'original_quantity' => $item['quantity'],
+                        'remaining_qty'     => $item['quantity'],
+                        'cost_usd'          => $item['unit_cost_usd'],
+                        'exchange_rate'     => $exchangeRate,
+                        'cost_local'        => $costLocal,
+                        'sale_price'        => $item['unit_sale_price'],
+                        'planned_price_usd' => $item['planned_price_usd'] ?? 0,
+                        'sale_price_usd'    => $item['planned_price_usd'] ?? 0,
+                    ]);
+                    $batchId = $batch->id;
+
+                    $product->increment('stock_quantity', $item['quantity']);
+                    if (isset($item['planned_price_usd']) && (float)$item['planned_price_usd'] > 0) {
+                        $product->update([
+                            'planned_price_usd' => $item['planned_price_usd'],
+                            'sale_price_usd'    => $item['planned_price_usd']
+                        ]);
+                    }
+                }
+
+                $purchaseItems[] = [
+                    'store_id'       => $storeId,
+                    'purchase_id'    => $purchase->id,
+                    'product_id'     => $product->id,
+                    'quantity'       => $item['quantity'],
+                    'unit_cost_price'=> $costLocal,
+                    'subtotal'       => $subtotal,
+                    'batch_id'       => $batchId,
+                ];
+            }
+
+            // 4. تحديث بيانات الفاتورة
+            $purchase->update([
+                'supplier_id'   => $request->supplier_id,
+                'notes'         => $request->notes,
+                'exchange_rate' => $exchangeRate,
+                'total_amount'  => round($totalAmount, 2),
+            ]);
+
+            foreach ($purchaseItems as $itemData) {
+                PurchaseItem::create($itemData);
+            }
+
+            // 5. خصم المبلغ الجديد من الخزينة
+            if ($wasFinalized) {
+                Setting::updateCashBalance(-round($totalAmount, 2));
+            }
+
+            try {
+                broadcast(new \App\Events\InventoryUpdated($storeId))->toOthers();
+            } catch (\Exception $e) {}
+
+            return response()->json([
+                'message'  => 'تم تحديث فاتورة الشراء وتعديل المخزون بنجاح ✅',
+                'purchase' => $purchase->fresh()->load(['items.product', 'supplier', 'batches']),
+            ]);
+        });
+    }
+
+    /**
+     * حذف فاتورة شراء (للسوبر أدمن فقط)
+     */
+    public function destroy(Request $request, $slug, $id = null)
+    {
+        if (! $request->user() || ! $request->user()->isSuperAdmin()) {
+            return response()->json(['message' => 'غير مصرح لك. حذف فواتير المشتريات متاح فقط للسوبر أدمن.'], 403);
+        }
+
+        $purchaseId = $id ?: $slug;
+
+        return DB::transaction(function () use ($purchaseId) {
+            $purchase = Purchase::with(['items.product', 'batches'])->findOrFail($purchaseId);
+            $storeId = $purchase->store_id;
+            TenantContext::setStoreId($storeId);
+
+            // إذا كانت الفاتورة مستلمة ومكتملة، نقوم بعكس التأثير على المخزون والخزينة
+            if (in_array($purchase->status, ['received', 'completed', 'paid'])) {
+                foreach ($purchase->items as $item) {
+                    if ($item->product_id) {
+                        $product = Product::withTrashed()->find($item->product_id);
+                        if ($product) {
+                            $product->decrement('stock_quantity', min($product->stock_quantity, $item->quantity));
+                        }
+                    }
+
+                    if ($item->batch_id) {
+                        $batch = ProductBatch::find($item->batch_id);
+                        if ($batch) {
+                            if ($batch->purchase_id == $purchase->id && $batch->original_quantity <= $item->quantity) {
+                                $batch->delete();
+                            } else {
+                                $batch->decrement('remaining_qty', min($batch->remaining_qty, $item->quantity));
+                                $batch->decrement('original_quantity', min($batch->original_quantity, $item->quantity));
+                            }
+                        }
+                    }
+                }
+
+                // عكس الخزينة (إعادة المبلغ المخصوم)
+                Setting::updateCashBalance(round((float)$purchase->total_amount, 2));
+            }
+
+            // حذف الباتشات المرتبطة حصراً بهذه الفاتورة
+            ProductBatch::where('purchase_id', $purchase->id)->delete();
+
+            // حذف عناصر الفاتورة ثم الفاتورة نفسها
+            $purchase->items()->delete();
+            $purchase->delete();
+
+            try {
+                broadcast(new \App\Events\InventoryUpdated($storeId))->toOthers();
+            } catch (\Exception $e) {}
+
+            return response()->json(['message' => 'تم حذف فاتورة الشراء وعكس حركتها بنجاح 🗑️']);
+        });
     }
 }

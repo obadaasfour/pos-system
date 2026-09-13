@@ -160,6 +160,8 @@ Route::prefix('{slug}')->middleware(TenantMiddleware::class)->group(function () 
             Route::get('/purchases/incoming', [PurchasesController::class, 'incomingIndex']);
             Route::post('/purchases',         [PurchasesController::class, 'store']);
             Route::get('/purchases/{id}',     [PurchasesController::class, 'show']);
+            Route::put('/purchases/{id}',     [PurchasesController::class, 'update']);
+            Route::delete('/purchases/{id}',  [PurchasesController::class, 'destroy']);
             Route::post('/purchases/{id}/confirm', [PurchasesController::class, 'confirmReceipt']);
 
             // Redundant routes removed and moved to global scope

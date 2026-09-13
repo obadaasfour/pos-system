@@ -4,9 +4,9 @@ import SoundService from '../utils/SoundService';
 import {
     Package, Plus, Trash2, Save, ChevronDown, AlertTriangle,
     RefreshCw, CheckCircle, Search, Truck, X, DollarSign, User,
-    Layers, Tag, Info, List, Receipt
+    Layers, Tag, Info, List, Receipt, Edit2, Eye
 } from 'lucide-react';
-import { toastSuccess, alertError } from '../utils/swal';
+import { toastSuccess, alertError, confirmDialog } from '../utils/swal';
 import { useAuth } from '../context/AuthContext';
 import PricingModal from '../components/PricingModal';
 import echo from '../utils/echo';
@@ -168,11 +168,12 @@ const InvoiceDetailsModal = ({ invoice, onClose }) => {
 };
 
 const PurchasesPage = () => {
-    const { user, isAuthenticated, isLoading: authLoading } = useAuth();
+    const { user, isAuthenticated, isLoading: authLoading, isAdmin, isSuperAdmin } = useAuth();
     const [purchases,  setPurchases]  = useState([]);
     const [products,   setProducts]   = useState([]);
     const [suppliers,  setSuppliers]  = useState([]);
     const [showForm,   setShowForm]   = useState(false);
+    const [editingInvoice, setEditingInvoice] = useState(null);
     const [loading,    setLoading]    = useState(false);
     const [saving,     setSaving]     = useState(false);
     const [toast,      setToast]      = useState('');
@@ -333,6 +334,69 @@ const PurchasesPage = () => {
         }, 0);
     }, [form.items]);
 
+    const handleOpenCreate = () => {
+        setEditingInvoice(null);
+        setForm(f => ({
+            supplier_id: '',
+            exchange_rate: f.exchange_rate || '',
+            notes: '',
+            items: [{ product_id: '', name: '', quantity: 1, unit_cost_price: '', unit_cost_usd: '', unit_sale_price: '', planned_price_usd: '' }],
+        }));
+        setShowForm(true);
+    };
+
+    const handleOpenEdit = (p) => {
+        setEditingInvoice(p);
+        const rate = parseFloat(p.exchange_rate) || 1;
+        const items = (p.items || []).map(it => {
+            const batch = (p.batches || []).find(b => b.id === it.batch_id || (b.product_id === it.product_id && b.original_quantity === it.quantity)) || {};
+            const costLocal = parseFloat(it.unit_cost_price) || 0;
+            const costUsd = batch.cost_usd || (rate > 0 ? (costLocal / rate).toFixed(2) : '');
+            const salePrice = batch.sale_price || it.product?.price || '';
+            const plannedUsd = batch.planned_price_usd || (rate > 0 && salePrice ? (parseFloat(salePrice) / rate).toFixed(2) : '');
+
+            return {
+                product_id: it.product_id,
+                name: it.product?.name || it.temp_product_name || `صنف #${it.product_id}`,
+                quantity: it.quantity,
+                unit_cost_price: costLocal,
+                unit_cost_usd: costUsd,
+                unit_sale_price: salePrice,
+                planned_price_usd: plannedUsd
+            };
+        });
+
+        setForm({
+            supplier_id: p.supplier_id || '',
+            exchange_rate: p.exchange_rate || '',
+            notes: p.notes || '',
+            items: items.length > 0 ? items : [{ product_id: '', name: '', quantity: 1, unit_cost_price: '', unit_cost_usd: '', unit_sale_price: '', planned_price_usd: '' }]
+        });
+        setShowForm(true);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    };
+
+    const handleDeleteInvoice = async (p) => {
+        const result = await confirmDialog(
+            `حذف فاتورة الشراء #${p.id}`,
+            'هل أنت متأكد من حذف هذه الفاتورة؟ سيتم إلغاء كمياتها من المخزون وإعادة قيمتها إلى الخزينة.',
+            'warning'
+        );
+        if (!result.isConfirmed) return;
+
+        try {
+            setLoading(true);
+            await api.delete(`/purchases/${p.id}`);
+            toastSuccess(`تم حذف فاتورة الشراء #${p.id} بنجاح 🗑️`);
+            fetchAll();
+        } catch (err) {
+            console.error(err);
+            alertError('فشل الحذف', err.response?.data?.message || 'حدث خطأ أثناء محاولة حذف الفاتورة');
+        } finally {
+            setLoading(false);
+        }
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         const validItems = form.items.filter(it => it.product_id);
@@ -349,14 +413,20 @@ const PurchasesPage = () => {
         payload.supplier_id = payload.supplier_id ? parseInt(payload.supplier_id) : null;
         
         try {
-            await api.post('/purchases', payload);
-            toastSuccess('تم حفظ الفاتورة بنجاح والأسعار الجديدة 📦');
+            if (editingInvoice) {
+                await api.put(`/purchases/${editingInvoice.id}`, payload);
+                toastSuccess(`تم تحديث فاتورة الشراء #${editingInvoice.id} وتعديل المخزون بنجاح ✏️`);
+                setEditingInvoice(null);
+            } else {
+                await api.post('/purchases', payload);
+                toastSuccess('تم حفظ الفاتورة بنجاح والأسعار الجديدة 📦');
+            }
             setShowForm(false);
             setForm(f => ({ ...f, notes: '', items: [{ product_id: '', name: '', quantity: 1, unit_cost_price: '', unit_cost_usd: '', unit_sale_price: '' }] }));
             fetchAll();
         } catch (err) {
             console.error(err);
-            alertError('فشل الحفظ', 'خطأ أثناء الحفظ: تأكد من إدخال جميع البيانات المطلوبة.');
+            alertError('فشل الحفظ', err.response?.data?.message || 'خطأ أثناء الحفظ: تأكد من إدخال جميع البيانات المطلوبة.');
         } finally {
             setSaving(false);
         }
@@ -408,7 +478,7 @@ const PurchasesPage = () => {
                         <button onClick={fetchAll} className="p-3 rounded-2xl bg-white border border-slate-200 text-slate-500 hover:text-blue-600 hover:shadow-md transition-all active:scale-95" title="تحديث البيانات">
                             <RefreshCw size={22} className={loading ? 'animate-spin' : ''} />
                         </button>
-                        <button onClick={() => setShowForm(true)} className="flex items-center gap-3 px-8 py-3.5 rounded-[1.5rem] bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-black text-sm shadow-xl shadow-blue-200 hover:from-blue-700 hover:to-indigo-700 transition-all hover:-translate-y-0.5 active:translate-y-0">
+                        <button onClick={handleOpenCreate} className="flex items-center gap-3 px-8 py-3.5 rounded-[1.5rem] bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-black text-sm shadow-xl shadow-blue-200 hover:from-blue-700 hover:to-indigo-700 transition-all hover:-translate-y-0.5 active:translate-y-0">
                             <Plus size={20} /> فاتورة شراء جديدة
                         </button>
                     </div>
@@ -443,9 +513,11 @@ const PurchasesPage = () => {
                                 <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
                                     <Truck size={18} className="text-white" />
                                 </div>
-                                <h2 className="font-black text-sm uppercase tracking-wider">إنشاء وجبات وتسعيرها</h2>
+                                <h2 className="font-black text-sm uppercase tracking-wider">
+                                    {editingInvoice ? `تعديل فاتورة الشراء #${editingInvoice.id}` : 'إنشاء وجبات وتسعيرها'}
+                                </h2>
                             </div>
-                            <button onClick={() => setShowForm(false)} className="text-slate-400 hover:text-rose-400 transition-colors"><X size={24}/></button>
+                            <button onClick={() => { setShowForm(false); setEditingInvoice(null); }} className="text-slate-400 hover:text-rose-400 transition-colors"><X size={24}/></button>
                         </div>
                         
                         <div className="overflow-y-auto flex-1">
@@ -559,10 +631,10 @@ const PurchasesPage = () => {
                             </div>
 
                             <div className="flex justify-end gap-4">
-                                <button type="button" onClick={() => setShowForm(false)} className="px-10 py-3.5 rounded-2xl border border-slate-200 text-slate-600 font-bold hover:bg-slate-50 transition-all">إلغاء</button>
+                                <button type="button" onClick={() => { setShowForm(false); setEditingInvoice(null); }} className="px-10 py-3.5 rounded-2xl border border-slate-200 text-slate-600 font-bold hover:bg-slate-50 transition-all">إلغاء</button>
                                 <button type="submit" disabled={saving} className="px-16 py-3.5 bg-blue-600 text-white rounded-2xl font-black shadow-2xl shadow-blue-200 hover:bg-blue-700 hover:-translate-y-1 transition-all flex items-center gap-3">
                                     {saving ? <RefreshCw className="animate-spin text-white" /> : <Save size={20} />}
-                                    حفظ الوجبات والأسعار
+                                    {editingInvoice ? 'حفظ التعديلات' : 'حفظ الوجبات والأسعار'}
                                 </button>
                             </div>
                         </form>
@@ -588,13 +660,14 @@ const PurchasesPage = () => {
                                     <th className="px-8 py-5 text-right">عدد الوجبات</th>
                                     <th className="px-8 py-5 text-right">إجمالي الفاتورة</th>
                                     <th className="px-8 py-5 text-right">الحالة</th>
-                                    <th className="px-8 py-5 text-right">{activeTab === 'all' ? 'التاريخ' : 'الإجراء'}</th>
+                                    <th className="px-8 py-5 text-right">التاريخ</th>
+                                    <th className="px-8 py-5 text-center w-36">الإجراءات</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100">
                                 {activeTab === 'all' ? (
                                     finalizedPurchases.length === 0 ? (
-                                        <tr><td colSpan={6} className="py-20 text-center text-slate-300 font-bold">لا يوجد فواتير شراء حالياً</td></tr>
+                                        <tr><td colSpan={7} className="py-20 text-center text-slate-300 font-bold">لا يوجد فواتير شراء حالياً</td></tr>
                                     ) : (
                                         finalizedPurchases.map(p => (
                                             <tr key={p.id} className="hover:bg-slate-50/50 transition-colors group">
@@ -616,12 +689,43 @@ const PurchasesPage = () => {
                                                 <td className="px-8 py-5 text-slate-500 font-bold text-xs italic">
                                                     {p.created_at ? new Date(p.created_at).toLocaleDateString('ar-SY', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : '--'}
                                                 </td>
+                                                <td className="px-8 py-5 text-center">
+                                                    <div className="flex items-center justify-center gap-2">
+                                                        <button 
+                                                            onClick={() => setSelectedInvoice(p)} 
+                                                            title="عرض التفاصيل" 
+                                                            className="w-9 h-9 rounded-xl bg-slate-100 hover:bg-blue-50 text-slate-500 hover:text-blue-600 flex items-center justify-center transition-all shadow-sm active:scale-95"
+                                                        >
+                                                            <Eye size={16} />
+                                                        </button>
+
+                                                        {isAdmin && (
+                                                            <button 
+                                                                onClick={() => handleOpenEdit(p)} 
+                                                                title="تعديل الفاتورة (أدمن وسوبر أدمن)" 
+                                                                className="w-9 h-9 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-600 flex items-center justify-center transition-all shadow-sm active:scale-95"
+                                                            >
+                                                                <Edit2 size={16} />
+                                                            </button>
+                                                        )}
+
+                                                        {isSuperAdmin && (
+                                                            <button 
+                                                                onClick={() => handleDeleteInvoice(p)} 
+                                                                title="حذف الفاتورة (سوبر أدمن فقط)" 
+                                                                className="w-9 h-9 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 flex items-center justify-center transition-all shadow-sm active:scale-95"
+                                                            >
+                                                                <Trash2 size={16} />
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </td>
                                             </tr>
                                         ))
                                     )
                                 ) : (
                                     filteredIncoming.length === 0 ? (
-                                        <tr><td colSpan={6} className="py-20 text-center text-slate-300 font-bold">لا توجد مشتريات واردة بانتظار التأكيد حالياً</td></tr>
+                                        <tr><td colSpan={7} className="py-20 text-center text-slate-300 font-bold">لا توجد مشتريات واردة بانتظار التأكيد حالياً</td></tr>
                                     ) : (
                                         filteredIncoming.map(p => (
                                             <tr key={p.id} className="hover:bg-slate-50/50 transition-colors group">
@@ -636,14 +740,28 @@ const PurchasesPage = () => {
                                                         {p.status === 'pending_approval' ? 'بانتظار الموافقة' : 'بانتظار التأكيد'}
                                                     </span>
                                                 </td>
-                                                <td className="px-8 py-5">
-                                                    <button 
-                                                        onClick={() => handleConfirmReceipt(p)}
-                                                        className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl font-black text-[11px] hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100 active:scale-95"
-                                                    >
-                                                        <CheckCircle size={14} />
-                                                        قبول الفاتورة
-                                                    </button>
+                                                <td className="px-8 py-5 text-slate-500 font-bold text-xs italic">
+                                                    {p.created_at ? new Date(p.created_at).toLocaleDateString('ar-SY', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : '--'}
+                                                </td>
+                                                <td className="px-8 py-5 text-center">
+                                                    <div className="flex items-center justify-center gap-2">
+                                                        <button 
+                                                            onClick={() => handleConfirmReceipt(p)}
+                                                            className="flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-xl font-black text-[11px] hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100 active:scale-95"
+                                                        >
+                                                            <CheckCircle size={14} />
+                                                            قبول الفاتورة
+                                                        </button>
+                                                        {isSuperAdmin && (
+                                                            <button
+                                                                onClick={() => handleDeleteInvoice(p)}
+                                                                title="حذف الفاتورة (سوبر أدمن فقط)"
+                                                                className="w-9 h-9 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 flex items-center justify-center transition-all shadow-sm active:scale-95"
+                                                            >
+                                                                <Trash2 size={16} />
+                                                            </button>
+                                                        )}
+                                                    </div>
                                                 </td>
                                             </tr>
                                         ))
