@@ -11,8 +11,8 @@ import { useAuth } from '../context/AuthContext';
 import PricingModal from '../components/PricingModal';
 import echo from '../utils/echo';
 
-const formatPrice = (n) => Number(n || 0).toLocaleString('ar-SY') + ' ل.س';
-const formatUsd   = (n) => Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' $';
+const formatPrice = (n) => Number(n || 0).toLocaleString('en-US') + ' L.S';
+const formatLs    = (n) => Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' L.S';
 
 /* ─── Product Picker Modal ────────────────────────── */
 const ProductPickerModal = ({ products, onSelect, onClose }) => {
@@ -139,8 +139,8 @@ const InvoiceDetailsModal = ({ invoice, onClose }) => {
                                         <tr key={item.id} className="hover:bg-slate-50 transition-colors">
                                             <td className="px-6 py-4 font-bold text-slate-800">{item.product?.name || 'منتج محذوف'}</td>
                                             <td className="px-6 py-4 text-center font-black">{item.quantity}</td>
-                                            <td className="px-6 py-4 text-center font-mono text-slate-500">{formatUsd(item.unit_cost_price)}</td>
-                                            <td className="px-6 py-4 text-center font-mono font-bold">{formatUsd(item.subtotal)}</td>
+                                            <td className="px-6 py-4 text-center font-mono text-slate-500">{formatLs(item.unit_cost_price)}</td>
+                                            <td className="px-6 py-4 text-center font-mono font-bold">{formatLs(item.subtotal)}</td>
                                             <td className="px-6 py-4 text-center font-black text-blue-600">
                                                 {batch.sale_price ? formatPrice(batch.sale_price) : '--'}
                                             </td>
@@ -159,7 +159,7 @@ const InvoiceDetailsModal = ({ invoice, onClose }) => {
                     </div>
                     <div className="text-left">
                         <span className="text-xs font-bold text-slate-400 block mb-1">الإجمالي الكلي</span>
-                        <span className="text-xl font-black text-indigo-700">{formatUsd(invoice.total_amount)}</span>
+                        <span className="text-xl font-black text-indigo-700">{formatLs(invoice.total_amount)}</span>
                     </div>
                 </div>
             </div>
@@ -680,7 +680,7 @@ const PurchasesPage = () => {
                                                 <td className="px-8 py-5">
                                                     <span className="bg-blue-50 text-blue-600 px-3 py-1 rounded-full text-[10px] font-black uppercase">{p.items?.length || 0} صنف</span>
                                                 </td>
-                                                <td className="px-8 py-5 font-black text-emerald-600 text-base">{formatUsd(p.total_amount)}</td>
+                                                <td className="px-8 py-5 font-black text-emerald-600 text-base">{formatLs(p.total_amount)}</td>
                                                 <td className="px-8 py-5">
                                                     <span className={`px-2.5 py-1 rounded-xl text-[9px] font-black border tracking-wider ${p.status === 'received' ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-amber-50 text-amber-600 border-amber-100'}`}>
                                                         {p.status === 'received' ? 'تم الاستلام' : p.status}
@@ -734,7 +734,7 @@ const PurchasesPage = () => {
                                                 </td>
                                                 <td className="px-8 py-5 font-black text-slate-700">{p.supplier?.name || '--'}</td>
                                                 <td className="px-8 py-5 font-bold">{p.items?.length || 0} صنف وارد</td>
-                                                <td className="px-8 py-5 font-black text-indigo-600">{formatUsd(p.total_amount)}</td>
+                                                <td className="px-8 py-5 font-black text-indigo-600">{formatLs(p.total_amount)}</td>
                                                 <td className="px-8 py-5">
                                                     <span className="px-2.5 py-1 rounded-xl text-[9px] font-black border tracking-wider bg-rose-50 text-rose-600 border-rose-100 animate-pulse">
                                                         {p.status === 'pending_approval' ? 'بانتظار الموافقة' : 'بانتظار التأكيد'}
