@@ -112,7 +112,8 @@ const CartContent = ({
     const totalUsd = cart.reduce((sum, i) => sum + (i.price_usd > 0 ? i.price_usd : (i.unit_price / (exchangeRate || 1))) * i.quantity, 0);
 
     return (
-        <div className="flex flex-col h-full bg-white">
+        <div className="flex flex-col h-full min-h-0 bg-white">
+            {/* ── Header (ثابت) ── */}
             <div className="px-5 py-4 border-b border-slate-100 flex justify-between items-center bg-white shrink-0">
                 <div className="flex items-center gap-2">
                     <ShoppingCart size={20} className="text-blue-600" />
@@ -147,6 +148,7 @@ const CartContent = ({
                 </div>
             </div>
 
+            {/* ── Customer Search (ثابت) ── */}
             <div className="px-4 py-3 bg-slate-50 border-b border-slate-100 flex gap-2 shrink-0">
                 <div className="flex-1"><CustomerQuickSearch onSelect={onCustomerSelect} selectedCustomer={customer} /></div>
                 <div className="relative">
@@ -157,7 +159,8 @@ const CartContent = ({
                 </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-4 space-y-2 bg-white">
+            {/* ── Cart Items — يسكرول داخلياً فقط ── */}
+            <div className="flex-1 overflow-y-auto min-h-0 p-4 space-y-2 bg-white scrollbar-thin scrollbar-thumb-slate-200 scrollbar-track-transparent">
                 {cart.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center text-slate-300 py-10">
                         <ShoppingCart size={48} className="mb-4 opacity-20" />
@@ -168,6 +171,7 @@ const CartContent = ({
                 ))}
             </div>
 
+            {/* ── Checkout Button — ثابت في الأسفل دائماً ── */}
             <div className="shrink-0 border-t border-slate-100 p-5 bg-slate-50 space-y-3">
                 <div className="flex justify-between items-end">
                     <span className="font-extrabold text-slate-400 text-xs uppercase tracking-widest">المجموع النهائي</span>
@@ -179,7 +183,7 @@ const CartContent = ({
                 <button
                     onClick={onCheckout}
                     disabled={cart.length === 0 || loading}
-                    className="w-full flex items-center justify-center gap-3 py-4 rounded-2xl font-black text-sm md:text-base bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-xl shadow-blue-200 active:scale-95 transition-all"
+                    className="w-full flex items-center justify-center gap-3 py-4 rounded-2xl font-black text-sm md:text-base bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-xl shadow-blue-200 active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                     {loading ? <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" /> : <><Receipt size={20} /><span>إتمام عملية البيع</span></>}
                 </button>
@@ -938,7 +942,7 @@ const PosPage = () => {
             <main className="flex-1 flex overflow-hidden relative" dir="rtl">
                 
                 {/* Cart Sidebar (Desktop) - Right Side in RTL */}
-                <aside className="hidden lg:flex w-[380px] shrink-0 flex-col bg-white border-l border-slate-200 shadow-xl z-10 h-full">
+                <aside className="hidden lg:flex w-[380px] shrink-0 flex-col bg-white border-l border-slate-200 shadow-xl z-10 h-full min-h-0 overflow-hidden">
                     <CartContent 
                         cart={cart} 
                         total={total} 
