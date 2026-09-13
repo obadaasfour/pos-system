@@ -169,9 +169,26 @@ const RemoteScannerPage = () => {
 
                     {status === 'error' && (
                         <div className="bg-rose-600/20 border border-rose-500/30 rounded-2xl p-6 flex flex-col items-center gap-3">
-                            <XCircle className="text-rose-500" size={40} />
-                            <p className="text-sm font-bold text-rose-400 text-center">{error}</p>
-                            <button onClick={startScanner} className="mt-2 text-xs font-bold bg-white/10 px-4 py-2 rounded-lg">إعادة المحاولة</button>
+                            <XCircle className="text-rose-500 shrink-0" size={40} />
+                            
+                            {error.includes("NotAllowedError") || error.includes("لم يتم العثور") || error.includes("SECURE_CONTEXT") || error.includes("Permission denied") || window.location.protocol !== 'https:' ? (
+                                <div className="text-right text-[11px] font-bold text-rose-300 bg-black/40 p-3 rounded-xl border border-rose-500/30 w-full">
+                                    <p className="mb-2 text-xs font-black text-rose-400 text-center">المتصفح يمنع الكاميرا لأن الموقع غير محمي (HTTP).</p>
+                                    <p className="mb-1 text-slate-300">لحل المشكلة مؤقتاً في متصفح الموبايل (Chrome):</p>
+                                    <ol className="list-decimal list-inside space-y-2 mt-2">
+                                        <li>انسخ الرابط التالي وافتحه: <br/><code className="bg-white/10 px-2 py-1 rounded text-white select-all block mt-1" dir="ltr">chrome://flags/#unsafely-treat-insecure-origin-as-secure</code></li>
+                                        <li>فعّل الخيار (Enable)</li>
+                                        <li>أضف عنوان الموقع: <br/><code className="bg-white/10 px-2 py-1 rounded text-white select-all block mt-1" dir="ltr">{window.location.origin}</code></li>
+                                        <li>اضغط Relaunch، ثم حدث هذه الصفحة.</li>
+                                    </ol>
+                                </div>
+                            ) : (
+                                <p className="text-sm font-bold text-rose-400 text-center">{error}</p>
+                            )}
+
+                            {window.location.protocol === 'https:' && (
+                                <button onClick={startScanner} className="mt-2 text-xs font-bold bg-white/10 px-4 py-2 rounded-lg hover:bg-white/20 transition">إعادة المحاولة</button>
+                            )}
                         </div>
                     )}
                 </div>

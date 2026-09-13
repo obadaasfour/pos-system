@@ -112,7 +112,7 @@ Route::prefix('{slug}')->middleware(TenantMiddleware::class)->group(function () 
     Route::post('/register', [AuthController::class, 'register']);
     Route::get('/menu',      [\App\Http\Controllers\PublicMenuController::class, 'getMenu']);
     Route::post('/pending-orders', [PendingOrderController::class, 'store']);
-
+    Route::post('/remote-scan', [InventoryController::class, 'remoteScan']);
     // Store Protected routes
     Route::middleware(['auth:sanctum'])->group(function () {
         Route::post('/logout', [AuthController::class, 'logout']);
@@ -139,7 +139,6 @@ Route::prefix('{slug}')->middleware(TenantMiddleware::class)->group(function () 
 
         Route::get('/inventory', [InventoryController::class, 'index']);
         Route::get('/inventory/barcode/{barcode}', [InventoryController::class, 'getByBarcode']);
-        Route::post('/remote-scan', [InventoryController::class, 'remoteScan']);
         
         // Pending Orders for POS
         Route::get('/pending-orders', [PendingOrderController::class, 'index']);

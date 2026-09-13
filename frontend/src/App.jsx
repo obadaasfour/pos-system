@@ -170,11 +170,12 @@ function App() {
                         <Route path="register" element={!isAuthenticated ? <RegisterPage onLogin={onLogin} /> : <Navigate to="/" replace />} />
                         <Route path="menu" element={<PublicMenu />} />
                         <Route path="verify-invoice/:uuid" element={<VerifyInvoicePage />} />
+                        <Route path="scan/:sessionId" element={<RemoteScannerPage />} />
                         <Route element={isAuthenticated ? <StoreLayout /> : <Navigate to="/login" replace />}>
                             <Route index element={<DashboardPage />} />
                             <Route path="dashboard" element={<DashboardPage />} />
                             <Route path="pos" element={<PosPage />} />
-                            <Route path="scan/:sessionId" element={<RemoteScannerPage />} />
+
                             <Route path="invoices" element={<InvoicesPage />} />
                             <Route path="reports" element={<ReportsPage />} />
                             <Route path="debts" element={<DebtLedgerPage />} />
