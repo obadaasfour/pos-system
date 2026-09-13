@@ -27,7 +27,7 @@ export const generateInvoice = async (order, items, store = null) => {
     const storeName = store?.name || 'yy';
     const cashierName = order.cashier_name || 'موظف المبيعات';
     const invoiceNo = order.invoice_number || order.id || '---';
-    const date = new Date(order.created_at || Date.now()).toLocaleString('ar-SY');
+    const date = new Date(order.created_at || Date.now()).toLocaleString('en-GB');
     const storeSlug = store?.slug || 'yy';
 
     // Calculate total USD
@@ -176,8 +176,8 @@ export const generateInvoice = async (order, items, store = null) => {
                             <tr>
                                 <td class="text-right bold">${item.name || item.product?.name}</td>
                                 <td class="text-center">${item.quantity}</td>
-                                <td class="text-center">${Number(item.price || item.unit_price).toLocaleString()}</td>
-                                <td class="text-left">${(item.quantity * (item.price || item.unit_price)).toLocaleString()}</td>
+                                <td class="text-center">${Number(item.price || item.unit_price).toLocaleString('en-US')}</td>
+                                <td class="text-left">${(item.quantity * (item.price || item.unit_price)).toLocaleString('en-US')}</td>
                             </tr>
                         `).join('')}
                     </tbody>
@@ -189,7 +189,7 @@ export const generateInvoice = async (order, items, store = null) => {
                     <div class="total-row grand-total bold">
                         <span>المبلغ الإجمالي:</span>
                         <div style="text-align: left; display: flex; flex-direction: column; align-items: flex-end;">
-                            <span>${Number(order.total_amount).toLocaleString()} ل.س</span>
+                            <span>${Number(order.total_amount).toLocaleString('en-US')} ل.س</span>
                             ${totalUsd > 0 ? `<span style="font-size: 11px; color: #444; font-weight: normal; margin-top: 2px;">($${totalUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} مخطط)</span>` : ''}
                         </div>
                     </div>
@@ -200,11 +200,11 @@ export const generateInvoice = async (order, items, store = null) => {
                     ${order.received_amount > 0 ? `
                         <div class="total-row">
                             <span>المبلغ المستلم:</span>
-                            <span>${Number(order.received_amount).toLocaleString()}</span>
+                            <span>${Number(order.received_amount).toLocaleString('en-US')}</span>
                         </div>
                         <div class="total-row">
                             <span>المتبقي (الفكة):</span>
-                            <span>${Number(order.change_amount).toLocaleString()}</span>
+                            <span>${Number(order.change_amount).toLocaleString('en-US')}</span>
                         </div>
                     ` : ''}
                 </div>
@@ -239,7 +239,7 @@ export const generateInvoice = async (order, items, store = null) => {
  */
 export const generatePaymentReceipt = async (payment, customer, store = null) => {
     const storeName = store?.name || 'yy';
-    const date = new Date(payment.created_at).toLocaleString('ar-SY');
+    const date = new Date(payment.created_at).toLocaleString('en-GB');
 
     const receiptHtml = `
         <!DOCTYPE html>
@@ -277,7 +277,7 @@ export const generatePaymentReceipt = async (payment, customer, store = null) =>
             </div>
             
             <div class="amount-box text-center bold">
-                مبلغ وقدره: ${Number(payment.amount).toLocaleString()} ل.س
+                مبلغ وقدره: ${Number(payment.amount).toLocaleString('en-US')} ل.س
             </div>
 
             <div class="text-center" style="margin-top: 30px; font-size: 11px;">

@@ -9,7 +9,7 @@ const BatchPickerModal = ({ isOpen, onClose, product, onSelect }) => {
 
     const batches = product.batches || [];
 
-    const formatPrice = (n) => Number(n || 0).toLocaleString('ar-SY') + ' ل.س';
+    const formatPrice = (n) => Number(n || 0).toLocaleString('en-US') + ' ل.س';
     const formatUsd   = (n) => Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' $';
 
     return (
@@ -59,7 +59,7 @@ const BatchPickerModal = ({ isOpen, onClose, product, onSelect }) => {
                                                 وجبة رقم #{batch.id}
                                             </span>
                                             <span className="text-[10px] bg-slate-200 text-slate-600 px-2 py-0.5 rounded-full font-bold">
-                                                {new Date(batch.created_at).toLocaleDateString('ar-SY')}
+                                                {new Date(batch.created_at).toLocaleDateString('en-GB')}
                                             </span>
                                         </div>
                                         <div className="flex items-center gap-4 text-xs text-slate-500 font-medium">

@@ -388,7 +388,7 @@ const UsersPage = () => {
                                             </td>
                                             <td className="px-5 py-4"><StatusBadge deletedAt={u.deleted_at}/></td>
                                             <td className="px-5 py-4 text-slate-400 whitespace-nowrap font-medium">
-                                                {new Date(u.created_at).toLocaleDateString('ar-EG', { year: 'numeric', month: 'short', day: 'numeric' })}
+                                                {new Date(u.created_at).toLocaleDateString('en-GB', { year: 'numeric', month: 'short', day: 'numeric' })}
                                             </td>
                                             <td className="px-5 py-4">
                                                 <div className="flex items-center gap-2">

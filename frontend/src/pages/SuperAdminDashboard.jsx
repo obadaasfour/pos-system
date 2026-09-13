@@ -47,7 +47,7 @@ const SuperAdminDashboard = () => {
                 {[
                     { label: 'إجمالي المتاجر', value: stats.total_stores, icon: Store, color: 'blue' },
                     { label: 'المتاجر النشطة', value: stats.active_stores, icon: CheckCircle, color: 'emerald' },
-                    { label: 'إجمالي المبيعات', value: Number(stats.total_sales).toLocaleString() + ' ل.س', icon: DollarSign, color: 'indigo' },
+                    { label: 'إجمالي المبيعات', value: Number(stats.total_sales).toLocaleString('en-US') + ' ل.س', icon: DollarSign, color: 'indigo' },
                     { label: 'المتاجر المعطلة', value: stats.inactive_stores, icon: XCircle, color: 'rose' }
                 ].map((item, i) => (
                     <div key={i} className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm relative overflow-hidden group">
@@ -79,7 +79,7 @@ const SuperAdminDashboard = () => {
                         <div className="mt-12 flex items-end justify-between">
                             <div>
                                 <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-2">إجمالي مبيعات الفرع</p>
-                                <p className="text-4xl font-black text-emerald-400">{Number(stats.top_store?.sales || 0).toLocaleString()} <span className="text-lg">ل.س</span></p>
+                                <p className="text-4xl font-black text-emerald-400">{Number(stats.top_store?.sales || 0).toLocaleString('en-US')} <span className="text-lg">ل.س</span></p>
                             </div>
                             <NavLink to="/super-admin/stores" className="bg-white text-slate-900 px-8 py-4 rounded-2xl font-black text-sm flex items-center gap-2 hover:bg-slate-100 transition-all shadow-xl">
                                 إدارة الفروع <ChevronRight size={18} />

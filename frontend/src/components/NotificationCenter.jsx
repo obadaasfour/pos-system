@@ -153,7 +153,7 @@ const NotificationCenter = () => {
                                                 <div className="flex items-center gap-2 text-[10px] text-slate-400 font-medium">
                                                     <Clock size={10} />
                                                     <span>
-                                                        {new Date(n.created_at).toLocaleTimeString('ar-SY', { hour: '2-digit', minute: '2-digit' })}
+                                                        {new Date(n.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
                                                     </span>
                                                 </div>
                                             </div>

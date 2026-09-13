@@ -97,7 +97,7 @@ const CheckoutModal = ({ isOpen, onClose, onConfirm, total, totalUsd, loading, i
 
     if (!isOpen) return null;
 
-    const formatPrice = (n) => Number(n || 0).toLocaleString('ar-SY') + ' ل.س';
+    const formatPrice = (n) => Number(n || 0).toLocaleString('en-US') + ' ل.س';
 
     const filteredCustomers = customers.filter(c => 
         c.name.toLowerCase().includes(customerSearchTerm.toLowerCase()) || 
@@ -201,7 +201,7 @@ const CheckoutModal = ({ isOpen, onClose, onConfirm, total, totalUsd, loading, i
                                         onClick={() => setReceivedAmount(val.toString())}
                                         className="py-3 bg-white border border-slate-200 rounded-xl font-bold text-xs text-slate-600 hover:border-blue-500 hover:text-blue-600 hover:bg-blue-50 transition-all active:scale-95 shadow-sm"
                                     >
-                                        {val.toLocaleString('ar-SY')}
+                                        {val.toLocaleString('en-US')}
                                     </button>
                                 ))}
                             </div>

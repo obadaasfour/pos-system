@@ -14,7 +14,7 @@ import { CAIRO_FONT } from "../utils/CairoFont";
 import { fixArabic } from "../utils/invoiceGenerator";
 import { SHOP_LOGO } from "../utils/Logo";
 
-const formatPrice = (n) => Number(n || 0).toLocaleString('ar-SY') + ' ل.س';
+const formatPrice = (n) => Number(n || 0).toLocaleString('en-US') + ' ل.س';
 
 const ReportsPage = () => {
     const [data, setData] = useState(null);
@@ -78,9 +78,9 @@ const ReportsPage = () => {
         // Summaries
         doc.setFont('Cairo', 'normal');
         doc.setFontSize(12);
-        doc.text(fixArabic(`إجمالي المبيعات: ${Number(data.total_sales).toLocaleString()} ل.س`), 200, 45, { align: 'right' });
-        doc.text(fixArabic(`صافي الأرباح: ${Number(data.total_profit).toLocaleString()} ل.س`), 200, 52, { align: 'right' });
-        doc.text(fixArabic(`إجمالي المصاريف: ${Number(data.total_expenses).toLocaleString()} ل.س`), 200, 59, { align: 'right' });
+        doc.text(fixArabic(`إجمالي المبيعات: ${Number(data.total_sales).toLocaleString('en-US')} ل.س`), 200, 45, { align: 'right' });
+        doc.text(fixArabic(`صافي الأرباح: ${Number(data.total_profit).toLocaleString('en-US')} ل.س`), 200, 52, { align: 'right' });
+        doc.text(fixArabic(`إجمالي المصاريف: ${Number(data.total_expenses).toLocaleString('en-US')} ل.س`), 200, 59, { align: 'right' });
 
         // Most Profitable Products Table
         doc.setFont('Cairo', 'bold');
@@ -88,7 +88,7 @@ const ReportsPage = () => {
         
         const productHead = [['صافي الربح', 'الكمية', 'اسم الصنف']].map(row => row.map(fixArabic));
         const productBody = data.top_profitable.map(p => [
-            Number(p.total_profit).toLocaleString(),
+            Number(p.total_profit).toLocaleString('en-US'),
             p.total_quantity,
             p.name
         ].map(fixArabic));
@@ -107,9 +107,9 @@ const ReportsPage = () => {
         
         const expenseHead = [['المبلغ', 'الوصف', 'التاريخ']].map(row => row.map(fixArabic));
         const expenseBody = data.expenses.map(e => [
-            Number(e.amount).toLocaleString(),
+            Number(e.amount).toLocaleString('en-US'),
             e.description || 'مصاريف',
-            new Date(e.created_at).toLocaleDateString('ar-SY')
+            new Date(e.created_at).toLocaleDateString('en-GB')
         ].map(fixArabic));
 
         autoTable(doc, {
@@ -248,7 +248,7 @@ const ReportsPage = () => {
                                     <p className="font-bold text-slate-800">{e.description || 'مصروف عام'}</p>
                                     <div className="flex items-center gap-2 text-xs text-slate-400">
                                         <Calendar size={12} />
-                                        {new Date(e.created_at).toLocaleDateString('ar-EG')}
+                                        {new Date(e.created_at).toLocaleDateString('en-GB')}
                                     </div>
                                 </div>
                                 <p className="font-black text-rose-600">{formatPrice(e.amount)}</p>

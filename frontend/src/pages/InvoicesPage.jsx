@@ -11,7 +11,7 @@ import useDebounce from '../hooks/useDebounce';
 import Pagination from '../components/Pagination';
 import { confirmDialog, toastError } from '../utils/swal';
 
-const formatPrice = (n) => Number(n || 0).toLocaleString('ar-SY') + ' ل.س';
+const formatPrice = (n) => Number(n || 0).toLocaleString('en-US') + ' ل.س';
 
 const InvoicesPage = () => {
     const { user } = useAuth();
@@ -140,7 +140,7 @@ const InvoicesPage = () => {
                                                 <td className="px-6 py-4 text-slate-500">
                                                     <div className="flex items-center gap-1.5">
                                                         <Calendar size={14} className="text-slate-300" />
-                                                        {new Date(inv.created_at).toLocaleString('ar-SY', { dateStyle: 'medium', timeStyle: 'short' })}
+                                                        {new Date(inv.created_at).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })}
                                                     </div>
                                                 </td>
                                                 <td className="px-6 py-4">

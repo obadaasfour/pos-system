@@ -133,7 +133,7 @@ const SmartSearch = ({
                                     {p.barcode && <span className="text-[10px] text-slate-400 font-mono">{p.barcode}</span>}
                                 </div>
                                 <div className="text-left">
-                                    <span className="text-xs font-extrabold text-blue-600">{Number(p.price).toLocaleString()} ل.س</span>
+                                    <span className="text-xs font-extrabold text-blue-600">{Number(p.price).toLocaleString('en-US')} ل.س</span>
                                     <p className="text-[10px] text-slate-400">{p.stock_quantity} متوفر</p>
                                 </div>
                             </button>

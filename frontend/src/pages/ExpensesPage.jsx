@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { toastSuccess, alertError, confirmDialog } from '../utils/swal';
 
-const formatPrice = (n) => Number(n || 0).toLocaleString('ar-SY') + ' ل.س';
+const formatPrice = (n) => Number(n || 0).toLocaleString('en-US') + ' ل.س';
 const categories = [
     { id: 'salary', label: 'راتب شهري', color: 'bg-blue-100 text-blue-700' },
     { id: 'advance', label: 'سلفة راتب', color: 'bg-amber-100 text-amber-700' },

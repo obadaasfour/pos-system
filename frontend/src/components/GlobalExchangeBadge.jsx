@@ -91,7 +91,7 @@ const GlobalExchangeBadge = () => {
                     <div className="flex flex-col">
                         <span className="text-[10px] text-slate-500 font-bold leading-none mb-0.5">سعر الصرف</span>
                         <span className="text-xs font-extrabold text-white leading-none">
-                            {Number(rate).toLocaleString()} ل.س
+                            {Number(rate).toLocaleString('en-US')} ل.س
                         </span>
                     </div>
                     {isAdmin && (

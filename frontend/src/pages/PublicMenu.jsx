@@ -114,7 +114,7 @@ const PublicMenu = () => {
                             <span className="text-[10px] font-bold text-slate-400 leading-none">{data.store.address}</span>
                         </div>
                         <div className="bg-blue-50 text-blue-600 px-2 py-1 rounded-lg text-[10px] font-black border border-blue-100">
-                            {data.exchange_rate.toLocaleString()} ل.س
+                            {data.exchange_rate.toLocaleString('en-US')} ل.س
                         </div>
                     </div>
                 </div>
@@ -174,7 +174,7 @@ const PublicMenu = () => {
                                 <div className="p-2 flex-1 flex flex-col justify-between">
                                     <h3 className="text-[11px] font-bold text-slate-800 line-clamp-2 leading-tight mb-1">{p.name}</h3>
                                     <div className="flex flex-col">
-                                        <span className="text-xs font-black text-blue-600">{(Number(p.price)).toLocaleString()} <small className="text-[8px] font-bold text-slate-400">ل.س</small></span>
+                                        <span className="text-xs font-black text-blue-600">{(Number(p.price)).toLocaleString('en-US')} <small className="text-[8px] font-bold text-slate-400">ل.س</small></span>
                                         {Number(p.price_usd) > 0 && <span className="text-[9px] font-bold text-emerald-600">{Number(p.price_usd).toFixed(2)} $</span>}
                                     </div>
                                 </div>
@@ -200,7 +200,7 @@ const PublicMenu = () => {
                             </div>
                             <span className="text-[10px] font-black uppercase tracking-wider">السلة</span>
                             <div className="w-px h-3 bg-white/20" />
-                            <span className="text-xs font-black">{total.toLocaleString()} ل.س</span>
+                            <span className="text-xs font-black">{total.toLocaleString('en-US')} ل.س</span>
                         </button>
                     </motion.div>
                 )}
@@ -224,7 +224,7 @@ const PublicMenu = () => {
                                         </div>
                                         <div className="flex-1 min-w-0">
                                             <h4 className="font-bold text-slate-800 text-[10px] truncate">{item.name}</h4>
-                                            <p className="text-[9px] text-blue-600 font-bold">{Number(item.price).toLocaleString()} ل.س</p>
+                                            <p className="text-[9px] text-blue-600 font-bold">{Number(item.price).toLocaleString('en-US')} ل.س</p>
                                         </div>
                                         <div className="flex items-center gap-1.5 bg-white p-1 rounded-lg border border-slate-200">
                                             <button onClick={() => updateQuantity(item.id, -1)} className="p-1 text-slate-400"><Minus size={10} /></button>
@@ -238,7 +238,7 @@ const PublicMenu = () => {
                             <div className="p-4 border-t border-slate-100">
                                 <div className="flex justify-between items-center mb-3">
                                     <span className="text-[10px] font-black text-slate-400">الإجمالي</span>
-                                    <span className="text-lg font-black text-slate-900">{total.toLocaleString()} <small className="text-[8px]">ل.س</small></span>
+                                    <span className="text-lg font-black text-slate-900">{total.toLocaleString('en-US')} <small className="text-[8px]">ل.س</small></span>
                                 </div>
                                 <button onClick={handleSubmitOrder} disabled={submitting || cart.length === 0} className="w-full bg-blue-600 text-white py-3 rounded-lg font-black text-[12px] shadow-lg shadow-blue-100 active:scale-95 disabled:bg-slate-200 flex items-center justify-center gap-2">
                                     {submitting ? <Loader2 size={16} className="animate-spin" /> : <span>تأكيد الطلب الآن</span>}

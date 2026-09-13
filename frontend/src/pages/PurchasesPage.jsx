@@ -112,7 +112,7 @@ const InvoiceDetailsModal = ({ invoice, onClose }) => {
                         </div>
                         <div>
                             <h3 className="text-lg font-black text-slate-800">تفاصيل الفاتورة #{invoice.id}</h3>
-                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{invoice.supplier?.name || 'مورد عام'} • {new Date(invoice.created_at).toLocaleDateString('ar-SY')}</p>
+                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">{invoice.supplier?.name || 'مورد عام'} • {new Date(invoice.created_at).toLocaleDateString('en-GB')}</p>
                         </div>
                     </div>
                     <button onClick={onClose} className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all">
@@ -687,7 +687,7 @@ const PurchasesPage = () => {
                                                     </span>
                                                 </td>
                                                 <td className="px-8 py-5 text-slate-500 font-bold text-xs italic">
-                                                    {p.created_at ? new Date(p.created_at).toLocaleDateString('ar-SY', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : '--'}
+                                                    {p.created_at ? new Date(p.created_at).toLocaleDateString('en-GB', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' }) : '--'}
                                                 </td>
                                                 <td className="px-8 py-5 text-center">
                                                     <div className="flex items-center justify-center gap-2">
@@ -741,7 +741,7 @@ const PurchasesPage = () => {
                                                     </span>
                                                 </td>
                                                 <td className="px-8 py-5 text-slate-500 font-bold text-xs italic">
-                                                    {p.created_at ? new Date(p.created_at).toLocaleDateString('ar-SY', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : '--'}
+                                                    {p.created_at ? new Date(p.created_at).toLocaleDateString('en-GB', { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' }) : '--'}
                                                 </td>
                                                 <td className="px-8 py-5 text-center">
                                                     <div className="flex items-center justify-center gap-2">

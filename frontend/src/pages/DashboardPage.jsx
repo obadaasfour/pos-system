@@ -15,10 +15,10 @@ import {
     Tooltip, ResponsiveContainer
 } from 'recharts';
 
-const formatPrice = (n) => Number(n || 0).toLocaleString('ar-SY') + ' ل.س';
+const formatPrice = (n) => Number(n || 0).toLocaleString('en-US') + ' ل.س';
 const formatPriceProfit = (n) => (
     <span className="flex items-baseline gap-1 justify-center">
-        <span>{Number(n || 0).toLocaleString('ar-SY')}</span>
+        <span>{Number(n || 0).toLocaleString('en-US')}</span>
         <span className="text-[10px] opacity-60 font-normal">ل.س</span>
     </span>
 );

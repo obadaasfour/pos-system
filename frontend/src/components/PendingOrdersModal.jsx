@@ -16,7 +16,7 @@ const PendingOrdersModal = ({
 }) => {
     if (!isOpen) return null;
 
-    const formatPrice = (n) => Number(n || 0).toLocaleString('ar-SY') + ' ل.س';
+    const formatPrice = (n) => Number(n || 0).toLocaleString('en-US') + ' ل.س';
 
     return (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200" dir="rtl">
@@ -67,7 +67,7 @@ const PendingOrdersModal = ({
                                         <div>
                                             <h4 className="font-black text-slate-800 text-base">{order.customer_name_or_table}</h4>
                                             <div className="flex items-center gap-3 text-xs text-slate-400 font-bold mt-0.5">
-                                                <span className="flex items-center gap-1"><Clock size={12} /> {new Date(order.created_at).toLocaleTimeString('ar-SY', { hour: '2-digit', minute: '2-digit' })}</span>
+                                                <span className="flex items-center gap-1"><Clock size={12} /> {new Date(order.created_at).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</span>
                                                 <span className="flex items-center gap-1"><RefreshCw size={12} /> طلب QR</span>
                                             </div>
                                         </div>

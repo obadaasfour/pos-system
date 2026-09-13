@@ -150,6 +150,8 @@ const StoreLayout = () => {
         setOpenGroups(prev => ({ ...prev, [index]: !prev[index] }));
     };
 
+    const isPos = location.pathname.endsWith('/pos');
+
     return (
         <div className="flex h-screen bg-slate-100 font-sans overflow-hidden mt-0 relative" dir="rtl">
             <Toaster />
@@ -251,9 +253,9 @@ const StoreLayout = () => {
                 </div>
             </aside>
 
-            <main className="flex-1 overflow-y-auto overflow-x-hidden flex flex-col bg-slate-50 relative transition-colors duration-300">
+            <main className={`flex-1 flex flex-col bg-slate-50 relative transition-colors duration-300 ${isPos ? 'overflow-hidden h-full min-h-0' : 'overflow-y-auto overflow-x-hidden'}`}>
                 {user?.is_demo && (
-                    <div className="sticky top-0 z-50 bg-gradient-to-r from-blue-600 to-indigo-700 text-white px-4 py-2 flex items-center justify-between shadow-lg">
+                    <div className="shrink-0 sticky top-0 z-50 bg-gradient-to-r from-blue-600 to-indigo-700 text-white px-4 py-2 flex items-center justify-between shadow-lg">
                         <div className="flex items-center gap-3">
                             <div className="w-6 h-6 bg-white/20 rounded flex items-center justify-center">
                                 <Zap size={14} className="fill-white" />
@@ -272,7 +274,7 @@ const StoreLayout = () => {
                     </div>
                 )}
                 <B2BProposalsManager />
-                <div className="flex-1 relative">
+                <div className={`flex-1 relative ${isPos ? 'h-full min-h-0 overflow-hidden' : ''}`}>
                     <Outlet />
                 </div>
             </main>

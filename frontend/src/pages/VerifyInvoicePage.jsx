@@ -79,8 +79,8 @@ const VerifyInvoicePage = () => {
         );
     }
 
-    const date = new Date(invoice.created_at).toLocaleString('ar-SY', {
-        year: 'numeric', month: 'long', day: 'numeric',
+    const date = new Date(invoice.created_at).toLocaleString('en-GB', {
+        year: 'numeric', month: 'short', day: 'numeric',
         hour: '2-digit', minute: '2-digit'
     });
 
@@ -186,11 +186,11 @@ const VerifyInvoicePage = () => {
                                         <div className="space-y-1">
                                             <span className="font-extrabold text-slate-900 block text-xs leading-normal">{item.name}</span>
                                             <span className="text-[10px] text-slate-400 block font-bold">
-                                                {item.quantity} وحدة × {Number(item.unit_price).toLocaleString()} ل.س
+                                                {item.quantity} وحدة × {Number(item.unit_price).toLocaleString('en-US')} ل.س
                                             </span>
                                         </div>
                                         <span className="font-black text-slate-900 text-xs">
-                                            {Number(item.total_local).toLocaleString()} ل.س
+                                            {Number(item.total_local).toLocaleString('en-US')} ل.س
                                         </span>
                                     </div>
                                 ))}
@@ -218,7 +218,7 @@ const VerifyInvoicePage = () => {
                                 <span className="font-extrabold text-xs text-slate-300">المجموع النهائي المستحق:</span>
                                 <div className="text-left space-y-1">
                                     <span className="block font-black text-emerald-400 text-2xl leading-none tracking-tight">
-                                        {Number(invoice.total_amount).toLocaleString('ar-SY')} <small className="text-xs font-bold">ل.س</small>
+                                        {Number(invoice.total_amount).toLocaleString('en-US')} <small className="text-xs font-bold">ل.س</small>
                                     </span>
                                     {totalUsd > 0 && (
                                         <span className="block font-bold text-slate-400 text-[10px]">

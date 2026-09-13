@@ -11,7 +11,7 @@ import Pagination from '../components/Pagination';
 import { confirmDialog, toastSuccess, toastError } from '../utils/swal';
 import echo from '../utils/echo';
 
-const formatPrice = (n) => Number(n || 0).toLocaleString('ar-SY') + ' ل.س';
+const formatPrice = (n) => Number(n || 0).toLocaleString('en-US') + ' ل.س';
 const formatUsd   = (n) => Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' $';
 
 /* ─── Import Modal ────────────────────────── */

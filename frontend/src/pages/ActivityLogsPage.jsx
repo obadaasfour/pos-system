@@ -158,7 +158,7 @@ const ActivityLogsPage = () => {
                                         <div className="flex items-center gap-2">
                                             <Calendar size={12} className="text-slate-300" />
                                             <span className="text-xs font-bold text-slate-600 tabular-nums">
-                                                {new Date(log.created_at).toLocaleString('ar-SY')}
+                                                {new Date(log.created_at).toLocaleString('en-GB')}
                                             </span>
                                         </div>
                                     </td>

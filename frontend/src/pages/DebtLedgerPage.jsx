@@ -9,7 +9,7 @@ import {
 import { generatePaymentReceipt } from '../utils/invoiceGenerator';
 import { toastSuccess, alertError, confirmDialog } from '../utils/swal';
 
-const formatPrice = (n) => Number(n || 0).toLocaleString('ar-SY') + ' ل.س';
+const formatPrice = (n) => Number(n || 0).toLocaleString('en-US') + ' ل.س';
 
 const DebtLedgerPage = () => {
     const { isSuperAdmin } = useAuth();
@@ -464,9 +464,9 @@ const DebtLedgerPage = () => {
                                         {paymentHistory.map(log => (
                                             <tr key={log.id} className="hover:bg-slate-50 transition-colors">
                                                 <td className="px-4 py-4 text-sm font-medium text-slate-600">
-                                                    <div className="flex items-center gap-2"><Calendar size={14} className="text-slate-400" /> {new Date(log.created_at).toLocaleDateString('ar-SY')}</div>
+                                                    <div className="flex items-center gap-2"><Calendar size={14} className="text-slate-400" /> {new Date(log.created_at).toLocaleDateString('en-GB')}</div>
                                                 </td>
-                                                <td className="px-4 py-4 font-black text-emerald-600">{Number(log.amount).toLocaleString()} ل.س</td>
+                                                <td className="px-4 py-4 font-black text-emerald-600">{Number(log.amount).toLocaleString('en-US')} ل.س</td>
                                                 <td className="px-4 py-4 text-sm text-slate-500">{log.description || 'تسديد دفعة'}</td>
                                                 <td className="px-4 py-4 text-center">
                                                     <button 

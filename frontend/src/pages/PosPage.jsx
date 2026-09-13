@@ -99,7 +99,7 @@ const CustomerQuickSearch = ({ onSelect, selectedCustomer }) => {
     );
 };
 
-const formatPrice = (n) => Number(n || 0).toLocaleString('ar-SY') + ' ل.س';
+const formatPrice = (n) => Number(n || 0).toLocaleString('en-US') + ' ل.س';
 const formatUsd = (n) => Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' $';
 
 /* ── Cart Content Component (Internal) ──────────────── */
@@ -134,7 +134,7 @@ const CartContent = ({
                                         <div key={o.id} className="group flex items-center justify-between p-2 hover:bg-slate-50 rounded-xl cursor-pointer">
                                             <div className="flex-1 min-w-0" onClick={() => onResumeHeld(o)}>
                                                 <p className="text-xs font-bold text-slate-800 truncate">{o.customer?.name || 'زبون نقدي'}</p>
-                                                <p className="text-[9px] text-slate-400">{o.time} • {o.cart.length} أصناف • {(o.total || 0).toLocaleString('ar-SY')}</p>
+                                                <p className="text-[9px] text-slate-400">{o.time} • {o.cart.length} أصناف • {(o.total || 0).toLocaleString('en-US')}</p>
                                             </div>
                                             <button onClick={() => onDeleteHeld(o.id)} className="p-1 text-slate-300 hover:text-rose-500 opacity-0 group-hover:opacity-100"><X size={14} /></button>
                                         </div>
@@ -176,7 +176,7 @@ const CartContent = ({
                 <div className="flex justify-between items-end">
                     <span className="font-extrabold text-slate-400 text-xs uppercase tracking-widest">المجموع النهائي</span>
                     <div className="text-left">
-                        <span className="block font-black text-blue-700 text-2xl leading-none">{(total || 0).toLocaleString('ar-SY')} <small className="text-xs">ل.س</small></span>
+                        <span className="block font-black text-blue-700 text-2xl leading-none">{(total || 0).toLocaleString('en-US')} <small className="text-xs">ل.س</small></span>
                         <span className="block font-bold text-emerald-600 text-[11px] mt-1 tracking-tight">({totalUsd.toLocaleString('en-US', { style: 'currency', currency: 'USD' })})</span>
                     </div>
                 </div>
@@ -244,7 +244,7 @@ const ProductCard = ({ product, onAdd, exchangeRate }) => {
                         {/* SYP Price */}
                         <div className="flex items-baseline justify-between gap-1.5">
                             <span className="text-blue-700 font-black text-lg tracking-tight">
-                                {Number(calculatedPrice || 0).toLocaleString('ar-SY')}
+                                {Number(calculatedPrice || 0).toLocaleString('en-US')}
                             </span>
                             <span className="text-[9px] font-black text-slate-400 uppercase">ل.س</span>
                         </div>
@@ -372,7 +372,7 @@ const PosPage = () => {
                     stock_quantity: b.remaining_qty,
                     price: parseFloat(b.sale_price || 0),
                     price_usd: parseFloat(b.sale_price_usd || b.planned_price_usd || p.sale_price_usd || p.planned_price_usd || 0),
-                    batch_date: new Date(b.created_at).toLocaleDateString('ar-SY', { month: 'short', day: 'numeric', year: 'numeric' }),
+                    batch_date: new Date(b.created_at).toLocaleDateString('en-GB', { month: 'short', day: 'numeric', year: 'numeric' }),
                     batch_exchange_rate: b.exchange_rate,
                     batch_info: b
                 };
@@ -727,7 +727,7 @@ const PosPage = () => {
             cart: [...cart],
             customer,
             total,
-            time: new Date().toLocaleTimeString('ar-SY', { hour: '2-digit', minute: '2-digit' })
+            time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
         };
         const updated = [newHold, ...heldOrders];
         setHeldOrders(updated);
@@ -874,7 +874,7 @@ const PosPage = () => {
 
 
     return (
-        <div className="flex flex-col h-full bg-slate-100" dir="rtl">
+        <div className="flex flex-col h-full min-h-0 overflow-hidden bg-slate-100" dir="rtl">
 
             {/* Header: Compact and Responsive */}
             <header className="shrink-0 bg-white border-b border-slate-200 px-4 py-2 md:px-8 md:py-4 flex items-center justify-between gap-4 z-40">
@@ -940,7 +940,7 @@ const PosPage = () => {
             </header>
 
             {/* Main Content: Unified Grid + Sidebar/Drawer */}
-            <main className="flex-1 flex overflow-hidden relative" dir="rtl">
+            <main className="flex-1 flex overflow-hidden min-h-0 relative" dir="rtl">
                 
                 {/* Cart Sidebar (Desktop) - Right Side in RTL */}
                 <aside className="hidden lg:flex w-[380px] shrink-0 flex-col bg-white border-l border-slate-200 shadow-xl z-10 h-full min-h-0 overflow-hidden">
@@ -968,7 +968,7 @@ const PosPage = () => {
                 </aside>
 
                 {/* Products Grid: Left Side in RTL */}
-                <section className="flex-1 flex flex-col overflow-hidden">
+                <section className="flex-1 flex flex-col min-h-0 overflow-hidden">
                     <div className="shrink-0 flex justify-between items-center px-4 py-3 md:px-6 md:py-4 gap-4">
                         <h2 className="font-extrabold text-slate-800 text-xs md:text-lg leading-tight">المنتجات والوجبات</h2>
                         <span className="text-[9px] md:text-xs text-slate-400 font-bold bg-white px-3 py-1 rounded-full border border-slate-100">
@@ -976,7 +976,7 @@ const PosPage = () => {
                         </span>
                     </div>
 
-                    <div className="flex-1 overflow-y-auto scrollbar-thin px-4 pb-28 md:px-6 md:pb-6 pt-2">
+                    <div className="flex-1 overflow-y-auto min-h-0 scrollbar-thin px-4 pb-28 md:px-6 md:pb-6 pt-2">
                         {filteredItems.length === 0 ? (
                             <div className="h-full flex flex-col items-center justify-center text-slate-300 py-20">
                                 <Package size={48} className="mb-4 opacity-20" />
@@ -1044,7 +1044,7 @@ const PosPage = () => {
                         </div>
                         <div className="text-left">
                             <span className="block text-[9px] font-bold text-slate-400 uppercase tracking-widest text-left">الإجمالي</span>
-                            <span className="text-base font-black text-blue-400 leading-none">{(total || 0).toLocaleString('ar-SY')} ل.س</span>
+                            <span className="text-base font-black text-blue-400 leading-none">{(total || 0).toLocaleString('en-US')} ل.س</span>
                         </div>
                     </button>
                 </div>

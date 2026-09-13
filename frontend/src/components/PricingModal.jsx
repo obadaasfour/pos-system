@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X, Tag, DollarSign, CheckCircle, Package, Info, AlertCircle } from 'lucide-react';
 
-const formatPrice = (n) => Number(n || 0).toLocaleString('ar-SY') + ' ل.س';
+const formatPrice = (n) => Number(n || 0).toLocaleString('en-US') + ' ل.س';
 
 const PricingModal = ({ isOpen, invoice, onConfirm, onClose, loading }) => {
     const [prices, setPrices] = useState({});
