@@ -40,6 +40,14 @@ Route::middleware(['auth:sanctum', SuperAdminOnly::class])->prefix('super-admin'
     Route::post('/stores/switch',   [\App\Http\Controllers\StoreController::class, 'switchStore']);
     Route::delete('/stores/{id}',   [SuperAdminController::class, 'destroy']);
     Route::get('/activity-logs',    [ActivityController::class, 'index']);
+
+    // ─── Full Customer Management (Super Admin unrestricted) ───
+    Route::get('/customers',                    [CustomerController::class, 'indexAll']);
+    Route::get('/customers/{id}',               [CustomerController::class, 'showAny']);
+    Route::put('/customers/{id}',               [CustomerController::class, 'updateAny']);
+    Route::delete('/customers/{id}',            [CustomerController::class, 'destroyAny']);
+    Route::post('/customers/{id}/settle',       [CustomerController::class, 'settleAny']);
+    Route::get('/customers/{id}/payments',      [CustomerController::class, 'paymentHistoryAny']);
 });
 
 // ─── Public Internal routes (Global login & re-hydration) ───────────────

@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import api from '../api';
+import { useAuth } from '../context/AuthContext';
 import { 
     Users, Search, Wallet, Plus, CreditCard, 
     History, Phone, MapPin, Loader2, CheckCircle, X, Printer, Calendar,
-    Pencil, Trash2
+    Pencil, Trash2, Shield
 } from 'lucide-react';
 import { generatePaymentReceipt } from '../utils/invoiceGenerator';
 import { toastSuccess, alertError, confirmDialog } from '../utils/swal';
@@ -11,6 +12,9 @@ import { toastSuccess, alertError, confirmDialog } from '../utils/swal';
 const formatPrice = (n) => Number(n || 0).toLocaleString('ar-SY') + ' ل.س';
 
 const DebtLedgerPage = () => {
+    const { isSuperAdmin } = useAuth();
+    // Super Admin uses unrestricted global endpoints
+    const apiBase = isSuperAdmin ? '/super-admin/customers' : '/customers';
     const [customers, setCustomers] = useState([]);
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
@@ -31,7 +35,7 @@ const DebtLedgerPage = () => {
     const fetchCustomers = async () => {
         setLoading(true);
         try {
-            const res = await api.get('/customers');
+            const res = await api.get(apiBase);
             setCustomers(res.data);
         } catch (err) {
             console.error(err);
@@ -49,7 +53,7 @@ const DebtLedgerPage = () => {
         setShowHistoryModal(true);
         setHistoryLoading(true);
         try {
-            const res = await api.get(`/customers/${customer.id}/payments`);
+            const res = await api.get(`${apiBase}/${customer.id}/payments`);
             setPaymentHistory(res.data);
         } catch (err) {
             console.error(err);
@@ -69,7 +73,7 @@ const DebtLedgerPage = () => {
         
         setIsProcessing(true);
         try {
-            await api.post(`/customers/${selectedCustomer.id}/settle`, { 
+            await api.post(`${apiBase}/${selectedCustomer.id}/settle`, { 
                 amount: settleAmount,
                 description: 'تسديد من خلال دفتر الديون'
             });
@@ -90,7 +94,7 @@ const DebtLedgerPage = () => {
         e.preventDefault();
         setIsProcessing(true);
         try {
-            await api.post('/customers', newCustomer);
+            await api.post(isSuperAdmin ? '/super-admin/customers' : '/customers', newCustomer);
             setShowAddCustomer(false);
             setNewCustomer({ name: '', phone: '', address: '' });
             fetchCustomers();
@@ -108,7 +112,7 @@ const DebtLedgerPage = () => {
         if (!editingCustomer?.id) return;
         setIsProcessing(true);
         try {
-            await api.put(`/customers/${editingCustomer.id}`, {
+            await api.put(`${apiBase}/${editingCustomer.id}`, {
                 name: editingCustomer.name,
                 phone: editingCustomer.phone,
                 address: editingCustomer.address,
@@ -134,7 +138,7 @@ const DebtLedgerPage = () => {
         if (!result.isConfirmed) return;
 
         try {
-            await api.delete(`/customers/${customer.id}`);
+            await api.delete(`${apiBase}/${customer.id}`);
             fetchCustomers();
             toastSuccess('تم حذف العميل بنجاح 🗑️');
         } catch (err) {
@@ -145,6 +149,12 @@ const DebtLedgerPage = () => {
 
     return (
         <div className="p-8 space-y-8 bg-slate-100 min-h-full font-sans" dir="rtl">
+            {isSuperAdmin && (
+                <div className="flex items-center gap-2 bg-violet-50 border border-violet-200 text-violet-700 px-4 py-2.5 rounded-2xl text-sm font-bold">
+                    <Shield size={16} />
+                    وضع السوبر أدمن — صلاحيات مطلقة على جميع العملاء
+                </div>
+            )}
             <div className="flex justify-between items-center">
                 <div>
                     <h1 className="text-3xl font-black text-slate-800">دفتر الديون 📔</h1>
