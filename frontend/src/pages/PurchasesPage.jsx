@@ -168,7 +168,7 @@ const InvoiceDetailsModal = ({ invoice, onClose }) => {
 };
 
 const PurchasesPage = () => {
-    const { isAuthenticated, isLoading: authLoading } = useAuth();
+    const { user, isAuthenticated, isLoading: authLoading } = useAuth();
     const [purchases,  setPurchases]  = useState([]);
     const [products,   setProducts]   = useState([]);
     const [suppliers,  setSuppliers]  = useState([]);
@@ -196,8 +196,9 @@ const PurchasesPage = () => {
             fetchAll();
 
             // Real-time listener for B2B Shipments
-            if (user?.store_id) {
-                const channel = echo.private(`stores.${user.store_id}`);
+            const storeId = user?.store_id || user?.store?.id;
+            if (storeId) {
+                const channel = echo.private(`stores.${storeId}`);
                 
                 // 1. Listen for standard status updates (for UI refresh)
                 channel.listen('.b2b.order_status_updated', (e) => {
@@ -218,11 +219,11 @@ const PurchasesPage = () => {
                 });
 
                 return () => {
-                    echo.leave(`stores.${user.store_id}`);
+                    echo.leave(`stores.${storeId}`);
                 };
             }
         }
-    }, [isAuthenticated, authLoading, user?.store_id]);
+    }, [isAuthenticated, authLoading, user?.store_id, user?.store?.id]);
 
     const fetchAll = async () => {
         setLoading(true);
