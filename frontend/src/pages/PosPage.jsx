@@ -637,9 +637,10 @@ const PosPage = () => {
     const fetchProducts = async () => {
         try {
             setLoading(true);
+            const storeId = user?.store_id || user?.store?.id;
             
-            // 1. Initial Load from Dexie (Instant)
-            const cached = await getCachedProducts();
+            // 1. Initial Load from Dexie — scoped to THIS store only
+            const cached = await getCachedProducts(storeId);
             if (cached && cached.length > 0) {
                 setProducts(cached);
             }
@@ -649,7 +650,7 @@ const PosPage = () => {
                 const res = await api.get(`/${slug}/inventory`);
                 const data = Array.isArray(res.data) ? res.data : [];
                 setProducts(data);
-                await cacheProducts(data);
+                await cacheProducts(data, storeId); // ← pass storeId for isolation
             } else if (!cached || cached.length === 0) {
                 alertError('عذراً، تعذر تحميل المنتجات', 'أنت أوفلاين ولا يوجد بيانات مخزنة مسبقاً.');
             }

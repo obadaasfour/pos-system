@@ -10,7 +10,18 @@ db.version(2).stores({
     customers: '++id, uuid, name, phone',
     orders: 'uuid, customer_id, status, created_at',
     sync_queue: '++id, table, action, timestamp',
-    app_cache: 'key' // For settings, exchange rate, etc.
+    app_cache: 'key'
+});
+
+// Version 3: Add _cached_store_id index for per-store product isolation
+db.version(3).stores({
+    products: '++id, uuid, barcode, category_id, name, _cached_store_id',
+    categories: '++id, uuid, name',
+    product_batches: '++id, uuid, product_id',
+    customers: '++id, uuid, name, phone',
+    orders: 'uuid, customer_id, status, created_at',
+    sync_queue: '++id, table, action, timestamp',
+    app_cache: 'key'
 });
 
 /**
@@ -51,7 +62,7 @@ export const compressImage = async (file, maxWidth = 300, quality = 0.7) => {
  * ── Helper functions for Data Persistence ─────────────────
  */
 
-export const cacheProducts = async (inputData) => {
+export const cacheProducts = async (inputData, storeId = null) => {
     // Handle Laravel resource wrapper (res.data.data) or direct array (res.data)
     const products = Array.isArray(inputData) ? inputData : (inputData?.data && Array.isArray(inputData.data) ? inputData.data : []);
     
@@ -68,7 +79,9 @@ export const cacheProducts = async (inputData) => {
             validProducts.push({
                 ...p,
                 id: Number(p.id),
-                category_id: p.category_id ? Number(p.category_id) : null
+                category_id: p.category_id ? Number(p.category_id) : null,
+                // Store the storeId for filtering later
+                _cached_store_id: storeId ? Number(storeId) : (p.store_id ? Number(p.store_id) : null),
             });
         } else {
             invalidProducts.push(p);
@@ -82,6 +95,10 @@ export const cacheProducts = async (inputData) => {
     if (validProducts.length === 0) return;
 
     return db.transaction('rw', db.products, async () => {
+        // Clear products for this store first, then re-add fresh ones
+        if (storeId) {
+            await db.products.where('_cached_store_id').equals(Number(storeId)).delete();
+        }
         await db.products.bulkPut(validProducts);
     });
 };
@@ -137,7 +154,13 @@ export const cacheSettings = async (inputData) => {
     }
 };
 
-export const getCachedProducts = async () => {
+export const getCachedProducts = async (storeId = null) => {
+    if (storeId) {
+        // Filter by store if storeId provided
+        const byStore = await db.products.where('_cached_store_id').equals(Number(storeId)).toArray();
+        // Fallback: if no store-tagged cache, return all (legacy)
+        if (byStore.length > 0) return byStore;
+    }
     return db.products.toArray();
 };
 
