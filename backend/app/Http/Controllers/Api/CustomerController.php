@@ -37,26 +37,36 @@ class CustomerController extends Controller
 
     public function update(Request $request, $id)
     {
-        $customer = Customer::findOrFail($id);
-        $validated = $request->validate([
-            'name'  => 'required|string|max:255',
-            'phone' => 'nullable|string|max:20',
-            'email' => 'nullable|email|unique:customers,email,' . $id,
-            'address' => 'nullable|string',
-        ]);
+        try {
+            $customer = Customer::findOrFail($id);
+            $validated = $request->validate([
+                'name'  => 'required|string|max:255',
+                'phone' => 'nullable|string|max:20',
+                'email' => 'nullable|email|unique:customers,email,' . $id,
+                'address' => 'nullable|string',
+            ]);
 
-        $customer->update($validated);
-        return response()->json($customer);
+            $customer->update($validated);
+            return response()->json($customer);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            return response()->json(['message' => 'بيانات غير صالحة', 'errors' => $e->errors()], 422);
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'فشل التعديل: ' . $e->getMessage()], 500);
+        }
     }
 
     public function destroy($id)
     {
-        $customer = Customer::findOrFail($id);
-        if ($customer->total_debt > 0) {
-            return response()->json(['message' => 'لا يمكن حذف عميل لديه ديون.'], 422);
+        try {
+            $customer = Customer::findOrFail($id);
+            if ($customer->total_debt > 0) {
+                return response()->json(['message' => 'لا يمكن حذف عميل لديه ديون متبقية.'], 422);
+            }
+            $customer->delete();
+            return response()->json(['message' => 'تم حذف العميل بنجاح.']);
+        } catch (\Exception $e) {
+            return response()->json(['message' => 'فشل الحذف: ' . $e->getMessage()], 500);
         }
-        $customer->delete();
-        return response()->json(['message' => 'تم حذف العميل بنجاح.']);
     }
 
     /**
